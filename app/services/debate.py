@@ -229,7 +229,7 @@ def load_debates_from_disk() -> int:
 def _build_system_prompt(debater: Debater, config: DebateConfig) -> str:
     """Baut den System-Prompt für einen Debattanten – sprachabhängig."""
     if config.language == "de":
-        return f"""Du bist {debater.name}, ein eloquenter Debattenteilnehmer.
+        base = f"""Du bist {debater.name}, ein eloquenter Debattenteilnehmer.
 Deine Position: {debater.position} zum Thema "{config.topic}".
 
 Regeln:
@@ -238,9 +238,9 @@ Regeln:
 - Bleib sachlich, aber leidenschaftlich.
 - Halte dich kurz und prägnant (max. 2-3 Absätze pro Runde).
 - Antworte auf Deutsch.
-{debater.system_prompt}"""
+- WICHTIG: Beginne DIREKT mit deinen Argumenten. Schreibe KEINE Überschriften, Rundennummern, Positionsbezeichnungen oder Meta-Informationen wie "Eröffnungsstatement", "Pro-Antwort", "Runde 1" etc. Kein einleitender Titel – nur deine Argumente."""
     else:
-        return f"""You are {debater.name}, an eloquent debate participant.
+        base = f"""You are {debater.name}, an eloquent debate participant.
 Your position: {debater.position} on the topic "{config.topic}".
 
 Rules:
@@ -249,7 +249,10 @@ Rules:
 - Stay factual but passionate.
 - Keep it concise (max 2-3 paragraphs per round).
 - Respond in English.
-{debater.system_prompt}"""
+- IMPORTANT: Start DIRECTLY with your arguments. Do NOT write any headers, round numbers, position labels, or meta-information like "Opening statement", "Pro response", "Round 1" etc. No introductory title – only your arguments."""
+    if debater.system_prompt:
+        base += f"\n{debater.system_prompt}"
+    return base
 
 
 def _build_messages(debate: Debate, current_debater: Debater, round_num: int, config: DebateConfig) -> list[dict]:

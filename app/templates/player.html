@@ -771,7 +771,7 @@ function stopModSpeaking() {
 }
 
 // === TYPING TEXT ===
-function typeTextInto(element, text, scrollTarget) {
+function typeTextInto(element, text, scrollTarget, audioDuration) {
     finalizeTyping();  // finish any previous typing first
     activeTypingBubble = element;
     activeTypingText = text;
@@ -779,6 +779,15 @@ function typeTextInto(element, text, scrollTarget) {
     const words = text.split(' ');
     let i = 0;
     element.innerHTML = '<span class="typing-cursor"></span>';
+
+    // Calculate interval: if audio duration is known, spread words across ~90% of it
+    // Otherwise use ~160ms per word (matching the old project's avg of 120 + random*80)
+    let interval;
+    if (audioDuration && audioDuration > 0) {
+        interval = Math.max(60, (audioDuration * 900) / words.length);
+    } else {
+        interval = 120 + Math.random() * 80;
+    }
 
     typingInterval = setInterval(() => {
         if (i < words.length) {
@@ -793,10 +802,10 @@ function typeTextInto(element, text, scrollTarget) {
             activeTypingBubble = null;
             activeTypingText = '';
         }
-    }, 80);
+    }, interval);
 }
 
-function addMessage(side, name, text) {
+function addMessage(side, name, text, audioDuration) {
     finalizeTyping();  // finish any previous typing first
 
     const msg = document.createElement('div');
@@ -815,7 +824,7 @@ function addMessage(side, name, text) {
     messagesEl.appendChild(msg);
     messagesEl.scrollTop = messagesEl.scrollHeight;
 
-    typeTextInto(bubble, text, messagesEl);
+    typeTextInto(bubble, text, messagesEl, audioDuration);
 }
 
 // === SEGMENT PLAYBACK ===
@@ -844,22 +853,41 @@ function playSegment(idx) {
     // Update counter
     document.getElementById('turnCounter').textContent = `${idx + 1} / ${segments.length}`;
 
-    // Start animation based on speaker
-    if (side === 'mod') {
-        const role = round === '0' ? 'Einleitung' : 'Zusammenfassung';
-        startModSpeaking(role);
-        // Type into the moderator overlay text display
-        const modText = document.getElementById('modTextDisplay');
-        typeTextInto(modText, text);
-    } else {
-        if (side === 'a') startSpeaking('A');
-        else startSpeaking('B');
-        addMessage(side, name, text);
+    // Load audio first, then start typing synced to duration
+    audioEl.src = seg.dataset.src;
+
+    function startSegmentAnimations(duration) {
+        if (side === 'mod') {
+            const role = round === '0' ? 'Einleitung' : 'Zusammenfassung';
+            startModSpeaking(role);
+            const modText = document.getElementById('modTextDisplay');
+            typeTextInto(modText, text, null, duration);
+        } else {
+            if (side === 'a') startSpeaking('A');
+            else startSpeaking('B');
+            addMessage(side, name, text, duration);
+        }
     }
 
-    // Play audio
-    audioEl.src = seg.dataset.src;
-    audioEl.play();
+    // Try to get audio duration before starting, with fallback
+    if (audioEl.readyState >= 1 && audioEl.duration && isFinite(audioEl.duration)) {
+        startSegmentAnimations(audioEl.duration);
+        audioEl.play();
+    } else {
+        audioEl.addEventListener('loadedmetadata', function onMeta() {
+            audioEl.removeEventListener('loadedmetadata', onMeta);
+            startSegmentAnimations(audioEl.duration);
+        }, { once: true });
+        // Fallback: if metadata takes too long, start anyway
+        setTimeout(() => {
+            if (!activeTypingBubble) {
+                startSegmentAnimations(null);
+            }
+        }, 500);
+        audioEl.load();
+        audioEl.play();
+    }
+
     isPlaying = true;
     playBtn.textContent = '⏸ Pause';
 }
