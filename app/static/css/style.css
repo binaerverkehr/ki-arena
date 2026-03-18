@@ -152,6 +152,10 @@ body {
 }
 .form-input:focus { border-color: var(--accent-a); }
 .form-textarea { resize: vertical; min-height: 60px; }
+.form-textarea.system-prompt-field { min-height: 120px; }
+.form-textarea::placeholder { color: var(--text-muted); opacity: 1; }
+.form-textarea::-webkit-input-placeholder { color: var(--text-muted); opacity: 1; }
+.form-textarea::-moz-placeholder { color: var(--text-muted); opacity: 1; }
 
 select.form-input {
     appearance: none;

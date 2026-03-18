@@ -47,9 +47,88 @@ async def index(request: Request, clone: str | None = None):
                 "b_model": source.config.debater_b.model,
                 "b_voice": source.config.debater_b.voice,
                 "b_position": source.config.debater_b.position,
+                "a_system_prompt": source.config.debater_a.system_prompt,
+                "b_system_prompt": source.config.debater_b.system_prompt,
+                "moderator_system_prompt": source.config.moderator_system_prompt,
                 "moderator_intro": source.config.moderator_intro,
                 "moderator_summary": source.config.moderator_summary,
             }
+
+    # Default system prompt templates for transparency in the UI
+    default_prompts = {
+        "de": {
+            "debater_a": (
+                'Du bist KI Alpha, ein eloquenter Debattenteilnehmer.\n'
+                'Deine Position: Pro zum Thema "...".\n\n'
+                'Regeln:\n'
+                '- Argumentiere überzeugend und fundiert für deine Position.\n'
+                '- Beziehe dich auf Argumente deines Gegenübers, wenn vorhanden.\n'
+                '- Bleib sachlich, aber leidenschaftlich.\n'
+                '- Halte dich kurz und prägnant (Länge abhängig von Einstellung).\n'
+                '- Antworte auf Deutsch.\n'
+                '- WICHTIG: Schließe deinen Beitrag IMMER mit einem vollständigen Satz ab. Brich niemals mitten im Satz ab.\n'
+                '- WICHTIG: Beginne DIREKT mit deinen Argumenten. Schreibe KEINE Überschriften, '
+                'Rundennummern, Positionsbezeichnungen oder Meta-Informationen wie '
+                '"Eröffnungsstatement", "Pro-Antwort", "Runde 1" etc. Kein einleitender Titel – nur deine Argumente.'
+            ),
+            "debater_b": (
+                'Du bist KI Beta, ein eloquenter Debattenteilnehmer.\n'
+                'Deine Position: Contra zum Thema "...".\n\n'
+                'Regeln:\n'
+                '- Argumentiere überzeugend und fundiert für deine Position.\n'
+                '- Beziehe dich auf Argumente deines Gegenübers, wenn vorhanden.\n'
+                '- Bleib sachlich, aber leidenschaftlich.\n'
+                '- Halte dich kurz und prägnant (Länge abhängig von Einstellung).\n'
+                '- Antworte auf Deutsch.\n'
+                '- WICHTIG: Schließe deinen Beitrag IMMER mit einem vollständigen Satz ab. Brich niemals mitten im Satz ab.\n'
+                '- WICHTIG: Beginne DIREKT mit deinen Argumenten. Schreibe KEINE Überschriften, '
+                'Rundennummern, Positionsbezeichnungen oder Meta-Informationen wie '
+                '"Eröffnungsstatement", "Pro-Antwort", "Runde 1" etc. Kein einleitender Titel – nur deine Argumente.'
+            ),
+            "moderator": (
+                '[Einleitung] Du bist ein professioneller Debattenmoderator. '
+                'Formuliere eine knappe, spannende Einleitung für die folgende Debatte. Sprache: Deutsch.\n\n'
+                '[Zusammenfassung] Du bist ein neutraler Debattenmoderator. '
+                'Fasse die Debatte zusammen und bewerte die Argumente beider Seiten fair. Sprache: Deutsch.'
+            ),
+        },
+        "en": {
+            "debater_a": (
+                'You are KI Alpha, an eloquent debate participant.\n'
+                'Your position: Pro on the topic "...".\n\n'
+                'Rules:\n'
+                '- Argue convincingly and with solid evidence for your position.\n'
+                '- Address your opponent\'s arguments when available.\n'
+                '- Stay factual but passionate.\n'
+                '- Keep it concise (length depends on setting).\n'
+                '- Respond in English.\n'
+                '- IMPORTANT: Always end with a complete sentence. Never stop mid-sentence.\n'
+                '- IMPORTANT: Start DIRECTLY with your arguments. Do NOT write any headers, '
+                'round numbers, position labels, or meta-information like "Opening statement", '
+                '"Pro response", "Round 1" etc. No introductory title – only your arguments.'
+            ),
+            "debater_b": (
+                'You are KI Beta, an eloquent debate participant.\n'
+                'Your position: Contra on the topic "...".\n\n'
+                'Rules:\n'
+                '- Argue convincingly and with solid evidence for your position.\n'
+                '- Address your opponent\'s arguments when available.\n'
+                '- Stay factual but passionate.\n'
+                '- Keep it concise (length depends on setting).\n'
+                '- Respond in English.\n'
+                '- IMPORTANT: Always end with a complete sentence. Never stop mid-sentence.\n'
+                '- IMPORTANT: Start DIRECTLY with your arguments. Do NOT write any headers, '
+                'round numbers, position labels, or meta-information like "Opening statement", '
+                '"Pro response", "Round 1" etc. No introductory title – only your arguments.'
+            ),
+            "moderator": (
+                '[Intro] You are a professional debate moderator. '
+                'Write a concise, engaging introduction for the following debate. Language: English.\n\n'
+                '[Summary] You are a neutral debate moderator. '
+                'Summarize the debate and evaluate both sides\' arguments fairly. Language: English.'
+            ),
+        },
+    }
 
     return request.app.state.templates.TemplateResponse(
         "index.html",
@@ -59,6 +138,7 @@ async def index(request: Request, clone: str | None = None):
             "voices": voices,
             "debates": debates[:10],
             "clone": clone_config,
+            "default_prompts": default_prompts,
         },
     )
 

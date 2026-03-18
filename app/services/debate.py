@@ -51,6 +51,7 @@ class Turn:
     position: str
     content: str
     audio_file: str | None = None
+    subs_file: str | None = None
     tokens_used: int = 0
     timestamp: str = ""
 
@@ -76,8 +77,10 @@ class Debate:
     turns: list[Turn] = field(default_factory=list)
     intro_text: str = ""
     intro_audio: str | None = None
+    intro_subs: str | None = None
     summary_text: str = ""
     summary_audio: str | None = None
+    summary_subs: str | None = None
     error: str = ""
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
@@ -93,8 +96,10 @@ class Debate:
             "created_at": self.created_at,
             "intro_text": self.intro_text,
             "intro_audio": self.intro_audio,
+            "intro_subs": self.intro_subs,
             "summary_text": self.summary_text,
             "summary_audio": self.summary_audio,
+            "summary_subs": self.summary_subs,
             "error": self.error,
             "turns": [
                 {
@@ -104,6 +109,7 @@ class Debate:
                     "position": t.position,
                     "content": t.content,
                     "audio_file": t.audio_file,
+                    "subs_file": t.subs_file,
                     "tokens_used": t.tokens_used,
                 }
                 for t in self.turns
@@ -165,6 +171,7 @@ class Debate:
                 position=t.get("position", ""),
                 content=t["content"],
                 audio_file=t.get("audio_file"),
+                subs_file=t.get("subs_file"),
                 tokens_used=t.get("tokens_used", 0),
             )
             for t in data.get("turns", [])
@@ -177,8 +184,10 @@ class Debate:
             turns=turns,
             intro_text=data.get("intro_text", ""),
             intro_audio=data.get("intro_audio"),
+            intro_subs=data.get("intro_subs"),
             summary_text=data.get("summary_text", ""),
             summary_audio=data.get("summary_audio"),
+            summary_subs=data.get("summary_subs"),
             error=data.get("error", ""),
             created_at=data.get("created_at", ""),
         )
@@ -226,33 +235,61 @@ def load_debates_from_disk() -> int:
     return loaded
 
 
+def _length_hint(max_tokens: int, lang: str) -> str:
+    """Erzeugt eine konkrete Längenvorgabe passend zum Token-Limit."""
+    if lang == "de":
+        if max_tokens <= 128:
+            return "Antworte in maximal 2-3 Sätzen. Fasse dich extrem kurz."
+        if max_tokens <= 256:
+            return "Antworte in maximal 3-5 Sätzen (ein kurzer Absatz)."
+        if max_tokens <= 512:
+            return "Halte dich kurz und prägnant (max. 1-2 Absätze pro Runde)."
+        return "Halte dich kurz und prägnant (max. 2-3 Absätze pro Runde)."
+    else:
+        if max_tokens <= 128:
+            return "Reply in 2-3 sentences maximum. Be extremely brief."
+        if max_tokens <= 256:
+            return "Reply in 3-5 sentences maximum (one short paragraph)."
+        if max_tokens <= 512:
+            return "Keep it concise (max 1-2 paragraphs per round)."
+        return "Keep it concise (max 2-3 paragraphs per round)."
+
+
 def _build_system_prompt(debater: Debater, config: DebateConfig) -> str:
-    """Baut den System-Prompt für einen Debattanten – sprachabhängig."""
+    """Baut den System-Prompt für einen Debattanten – sprachabhängig.
+
+    Wenn debater.system_prompt gesetzt ist, wird er als vollständiger
+    System-Prompt verwendet. Andernfalls wird der Standard-Prompt erzeugt.
+    """
+    if debater.system_prompt:
+        return debater.system_prompt
+
+    length = _length_hint(config.max_tokens_per_turn, config.language)
+
     if config.language == "de":
-        base = f"""Du bist {debater.name}, ein eloquenter Debattenteilnehmer.
+        return f"""Du bist {debater.name}, ein eloquenter Debattenteilnehmer.
 Deine Position: {debater.position} zum Thema "{config.topic}".
 
 Regeln:
 - Argumentiere überzeugend und fundiert für deine Position.
 - Beziehe dich auf Argumente deines Gegenübers, wenn vorhanden.
 - Bleib sachlich, aber leidenschaftlich.
-- Halte dich kurz und prägnant (max. 2-3 Absätze pro Runde).
+- {length}
 - Antworte auf Deutsch.
+- WICHTIG: Schließe deinen Beitrag IMMER mit einem vollständigen Satz ab. Brich niemals mitten im Satz ab.
 - WICHTIG: Beginne DIREKT mit deinen Argumenten. Schreibe KEINE Überschriften, Rundennummern, Positionsbezeichnungen oder Meta-Informationen wie "Eröffnungsstatement", "Pro-Antwort", "Runde 1" etc. Kein einleitender Titel – nur deine Argumente."""
     else:
-        base = f"""You are {debater.name}, an eloquent debate participant.
+        return f"""You are {debater.name}, an eloquent debate participant.
 Your position: {debater.position} on the topic "{config.topic}".
 
 Rules:
 - Argue convincingly and with solid evidence for your position.
 - Address your opponent's arguments when available.
 - Stay factual but passionate.
-- Keep it concise (max 2-3 paragraphs per round).
+- {length}
 - Respond in English.
+- IMPORTANT: Always end with a complete sentence. Never stop mid-sentence.
 - IMPORTANT: Start DIRECTLY with your arguments. Do NOT write any headers, round numbers, position labels, or meta-information like "Opening statement", "Pro response", "Round 1" etc. No introductory title – only your arguments."""
-    if debater.system_prompt:
-        base += f"\n{debater.system_prompt}"
-    return base
 
 
 def _build_messages(debate: Debate, current_debater: Debater, round_num: int, config: DebateConfig) -> list[dict]:
@@ -437,6 +474,7 @@ async def run_debate(
                     debate.output_dir / "intro.mp3",
                 )
                 debate.intro_audio = "intro.mp3"
+                debate.intro_subs = "intro.subs.json"
                 await notify("intro_audio_done")
             except Exception as e:
                 print(f"  ⚠  TTS-Fehler (Intro): {e}")
@@ -453,6 +491,7 @@ async def run_debate(
                     debate.output_dir / filename,
                 )
                 turn.audio_file = filename
+                turn.subs_file = filename.replace(".mp3", ".subs.json")
                 await notify(f"audio_turn_{i}_done")
             except Exception as e:
                 print(f"  ⚠  TTS-Fehler (Turn {i}): {e}")
@@ -467,6 +506,7 @@ async def run_debate(
                     debate.output_dir / "summary.mp3",
                 )
                 debate.summary_audio = "summary.mp3"
+                debate.summary_subs = "summary.subs.json"
                 await notify("summary_audio_done")
             except Exception as e:
                 print(f"  ⚠  TTS-Fehler (Summary): {e}")

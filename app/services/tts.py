@@ -42,6 +42,7 @@ class TTSResult:
     audio_path: Path
     voice: str
     duration_estimate: float = 0.0  # rough estimate in seconds
+    word_boundaries: list[dict] = field(default_factory=list)  # [{offset_ms, duration_ms, text}, ...]
 
 
 def _clean_for_tts(text: str) -> str:
@@ -61,21 +62,73 @@ def _clean_for_tts(text: str) -> str:
 
 
 async def synthesize(text: str, voice: str, output_path: Path) -> TTSResult:
-    """Generate an MP3 file from text using edge-tts."""
+    """Generate an MP3 file from text using edge-tts.
+
+    Uses streaming to capture WordBoundary events for precise subtitle timing.
+    Each boundary contains offset_ms, duration_ms, and the spoken text fragment.
+    """
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     text = _clean_for_tts(text)
     communicate = edge_tts.Communicate(text, voice)
-    await communicate.save(str(output_path))
 
-    # Rough duration estimate: ~150 words/min for TTS
-    word_count = len(text.split())
-    duration_est = (word_count / 150) * 60
+    sentence_boundaries: list[dict] = []
+    audio_chunks: list[bytes] = []
+
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            audio_chunks.append(chunk["data"])
+        elif chunk["type"] in ("WordBoundary", "SentenceBoundary"):
+            # offset/duration come in 100ns ticks – convert to milliseconds
+            sentence_boundaries.append({
+                "offset_ms": chunk["offset"] / 10_000,
+                "duration_ms": chunk["duration"] / 10_000,
+                "text": chunk["text"],
+            })
+
+    # Interpolate word-level timings from sentence boundaries
+    word_boundaries: list[dict] = []
+    for sb in sentence_boundaries:
+        words = sb["text"].split()
+        if not words:
+            continue
+        sent_offset = sb["offset_ms"]
+        sent_duration = sb["duration_ms"]
+        # Distribute time evenly across words in the sentence
+        word_dur = sent_duration / len(words)
+        for i, w in enumerate(words):
+            word_boundaries.append({
+                "offset_ms": round(sent_offset + i * word_dur, 1),
+                "duration_ms": round(word_dur, 1),
+                "text": w,
+            })
+
+    # Write audio data
+    with open(output_path, "wb") as f:
+        for c in audio_chunks:
+            f.write(c)
+
+    # Write subtitle JSON alongside the audio file
+    subs_path = output_path.with_suffix(".subs.json")
+    import json
+    subs_path.write_text(
+        json.dumps(word_boundaries, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    # Duration estimate from last word boundary (more accurate than word-count heuristic)
+    if word_boundaries:
+        last = word_boundaries[-1]
+        duration_est = (last["offset_ms"] + last["duration_ms"]) / 1000
+    else:
+        word_count = len(text.split())
+        duration_est = (word_count / 150) * 60
 
     return TTSResult(
         audio_path=output_path,
         voice=voice,
         duration_estimate=duration_est,
+        word_boundaries=word_boundaries,
     )
 
 

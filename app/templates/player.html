@@ -627,6 +627,7 @@
 <div id="segmentData" style="display:none">
     {% if debate.intro_audio %}
     <div class="seg" data-src="/audio/{{ debate.id }}/{{ debate.intro_audio }}"
+         data-subs="{% if debate.intro_subs %}/audio/{{ debate.id }}/{{ debate.intro_subs }}{% endif %}"
          data-name="Moderator" data-role="Einleitung" data-model=""
          data-text="{{ debate.intro_text|e }}" data-side="mod" data-round="0"></div>
     {% endif %}
@@ -634,6 +635,7 @@
     {% if turn.audio_file %}
     {% set is_a = turn.debater_name == debate.config.debater_a.name %}
     <div class="seg" data-src="/audio/{{ debate.id }}/{{ turn.audio_file }}"
+         data-subs="{% if turn.subs_file %}/audio/{{ debate.id }}/{{ turn.subs_file }}{% endif %}"
          data-name="{{ turn.debater_name }}"
          data-role="Runde {{ turn.round_num }} · {{ turn.position }}"
          data-model="{{ turn.model }}"
@@ -644,6 +646,7 @@
     {% endfor %}
     {% if debate.summary_audio %}
     <div class="seg" data-src="/audio/{{ debate.id }}/{{ debate.summary_audio }}"
+         data-subs="{% if debate.summary_subs %}/audio/{{ debate.id }}/{{ debate.summary_subs }}{% endif %}"
          data-name="Moderator" data-role="Zusammenfassung" data-model=""
          data-text="{{ debate.summary_text|e }}" data-side="mod" data-round="99"></div>
     {% endif %}
@@ -666,12 +669,20 @@ let typingInterval = null;
 let scrollKeepInterval = null;
 let activeTypingBubble = null;  // track the bubble currently being typed into
 let activeTypingText = '';       // full text for that bubble
+let subsAnimFrame = null;        // requestAnimationFrame ID for subtitle sync
+let currentSubs = null;          // word boundary data for current segment
+let subsScrollTarget = null;     // scroll target for subtitle sync
 
 function finalizeTyping() {
     clearInterval(typingInterval);
     clearInterval(scrollKeepInterval);
     typingInterval = null;
     scrollKeepInterval = null;
+    if (subsAnimFrame) {
+        cancelAnimationFrame(subsAnimFrame);
+        subsAnimFrame = null;
+    }
+    currentSubs = null;
     // If there's an unfinished bubble, show the full text immediately
     if (activeTypingBubble) {
         activeTypingBubble.textContent = activeTypingText;
@@ -771,6 +782,65 @@ function stopModSpeaking() {
 }
 
 // === TYPING TEXT ===
+function typeTextWithSubs(element, text, scrollTarget, subs) {
+    finalizeTyping();
+    activeTypingBubble = element;
+    activeTypingText = text;
+    currentSubs = subs;
+    subsScrollTarget = scrollTarget;
+    element.innerHTML = '<span class="typing-cursor"></span>';
+
+    let lastRendered = '';
+    function syncFrame() {
+        if (!currentSubs) return;
+        const timeMs = audioEl.currentTime * 1000;
+
+        // Find the current word index (last word whose offset has been reached)
+        let wordIdx = -1;
+        while (wordIdx + 1 < subs.length && subs[wordIdx + 1].offset_ms <= timeMs) {
+            wordIdx++;
+        }
+
+        // Build visible text: all completed words + partial current word
+        let visible = '';
+        if (wordIdx >= 0) {
+            // All fully completed words (words before current)
+            const completedWords = subs.slice(0, wordIdx).map(w => w.text).join(' ');
+
+            // Current word: interpolate characters based on time within this word's duration
+            const cur = subs[wordIdx];
+            const elapsed = timeMs - cur.offset_ms;
+            const progress = Math.min(1, elapsed / Math.max(1, cur.duration_ms));
+            const chars = Math.ceil(progress * cur.text.length);
+            const partialWord = cur.text.slice(0, chars);
+
+            visible = completedWords ? completedWords + ' ' + partialWord : partialWord;
+        }
+
+        if (visible !== lastRendered) {
+            lastRendered = visible;
+            element.innerHTML = visible + '<span class="typing-cursor"></span>';
+            element.scrollTop = element.scrollHeight;
+            if (subsScrollTarget) subsScrollTarget.scrollTop = subsScrollTarget.scrollHeight;
+        }
+
+        // Check if all words fully shown
+        if (wordIdx >= subs.length - 1) {
+            const lastW = subs[subs.length - 1];
+            if (timeMs >= lastW.offset_ms + lastW.duration_ms) {
+                element.textContent = text;
+                activeTypingBubble = null;
+                activeTypingText = '';
+                currentSubs = null;
+                subsAnimFrame = null;
+                return;
+            }
+        }
+        subsAnimFrame = requestAnimationFrame(syncFrame);
+    }
+    subsAnimFrame = requestAnimationFrame(syncFrame);
+}
+
 function typeTextInto(element, text, scrollTarget, audioDuration) {
     finalizeTyping();  // finish any previous typing first
     activeTypingBubble = element;
@@ -805,7 +875,7 @@ function typeTextInto(element, text, scrollTarget, audioDuration) {
     }, interval);
 }
 
-function addMessage(side, name, text, audioDuration) {
+function addMessage(side, name, text, audioDuration, subs) {
     finalizeTyping();  // finish any previous typing first
 
     const msg = document.createElement('div');
@@ -824,11 +894,32 @@ function addMessage(side, name, text, audioDuration) {
     messagesEl.appendChild(msg);
     messagesEl.scrollTop = messagesEl.scrollHeight;
 
-    typeTextInto(bubble, text, messagesEl, audioDuration);
+    if (subs && subs.length > 0) {
+        typeTextWithSubs(bubble, text, messagesEl, subs);
+    } else {
+        typeTextInto(bubble, text, messagesEl, audioDuration);
+    }
+}
+
+// === SUBTITLE CACHE ===
+const subsCache = {};
+
+async function loadSubs(subsUrl) {
+    if (!subsUrl) return null;
+    if (subsCache[subsUrl]) return subsCache[subsUrl];
+    try {
+        const resp = await fetch(subsUrl);
+        if (!resp.ok) return null;
+        const data = await resp.json();
+        subsCache[subsUrl] = data;
+        return data;
+    } catch {
+        return null;
+    }
 }
 
 // === SEGMENT PLAYBACK ===
-function playSegment(idx) {
+async function playSegment(idx) {
     if (idx < 0 || idx >= segments.length) return;
 
     stopAllSpeaking();
@@ -841,6 +932,7 @@ function playSegment(idx) {
     const rawText = seg.dataset.text;
     const text = cleanMarkdown(rawText);
     const round = seg.dataset.round;
+    const subsUrl = seg.dataset.subs;
 
     // Update round badge
     const badge = document.getElementById('roundBadge');
@@ -853,19 +945,24 @@ function playSegment(idx) {
     // Update counter
     document.getElementById('turnCounter').textContent = `${idx + 1} / ${segments.length}`;
 
-    // Load audio first, then start typing synced to duration
+    // Load audio and subtitles in parallel
     audioEl.src = seg.dataset.src;
+    const subs = await loadSubs(subsUrl);
 
     function startSegmentAnimations(duration) {
         if (side === 'mod') {
             const role = round === '0' ? 'Einleitung' : 'Zusammenfassung';
             startModSpeaking(role);
             const modText = document.getElementById('modTextDisplay');
-            typeTextInto(modText, text, null, duration);
+            if (subs && subs.length > 0) {
+                typeTextWithSubs(modText, text, null, subs);
+            } else {
+                typeTextInto(modText, text, null, duration);
+            }
         } else {
             if (side === 'a') startSpeaking('A');
             else startSpeaking('B');
-            addMessage(side, name, text, duration);
+            addMessage(side, name, text, duration, subs);
         }
     }
 
@@ -890,6 +987,7 @@ function playSegment(idx) {
 
     isPlaying = true;
     playBtn.textContent = '⏸ Pause';
+    prefetchNextSubs();
 }
 
 function togglePlay() {
@@ -921,6 +1019,15 @@ function nextSegment() {
 
 function prevSegment() {
     if (currentIdx > 0) playSegment(currentIdx - 1);
+}
+
+// Prefetch next segment's subtitles
+function prefetchNextSubs() {
+    const nextIdx = currentIdx + 1;
+    if (nextIdx < segments.length) {
+        const nextSubsUrl = segments[nextIdx].dataset.subs;
+        if (nextSubsUrl) loadSubs(nextSubsUrl);
+    }
 }
 
 // Auto-advance when audio ends

@@ -152,4 +152,79 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Initial estimate on page load
     updateEstimate();
+
+    // ─── System Prompt Preview ────────────────────────────────────
+    // Shows the actual default system prompt as placeholder text,
+    // dynamically updated when name, position, topic, or language change.
+
+    const promptTemplates = {
+        de: {
+            debater: (name, position, topic) =>
+`Du bist ${name}, ein eloquenter Debattenteilnehmer.
+Deine Position: ${position} zum Thema "${topic}".
+
+Regeln:
+- Argumentiere überzeugend und fundiert für deine Position.
+- Beziehe dich auf Argumente deines Gegenübers, wenn vorhanden.
+- Bleib sachlich, aber leidenschaftlich.
+- Halte dich kurz und prägnant (Länge abhängig von Einstellung).
+- Antworte auf Deutsch.
+- WICHTIG: Schließe deinen Beitrag IMMER mit einem vollständigen Satz ab. Brich niemals mitten im Satz ab.
+- WICHTIG: Beginne DIREKT mit deinen Argumenten. Schreibe KEINE Überschriften, Rundennummern, Positionsbezeichnungen oder Meta-Informationen wie "Eröffnungsstatement", "Pro-Antwort", "Runde 1" etc. Kein einleitender Titel – nur deine Argumente.`,
+            moderator:
+`[Einleitung] Du bist ein professioneller Debattenmoderator. Formuliere eine knappe, spannende Einleitung für die folgende Debatte. Sprache: Deutsch.
+
+[Zusammenfassung] Du bist ein neutraler Debattenmoderator. Fasse die Debatte zusammen und bewerte die Argumente beider Seiten fair. Sprache: Deutsch.`,
+        },
+        en: {
+            debater: (name, position, topic) =>
+`You are ${name}, an eloquent debate participant.
+Your position: ${position} on the topic "${topic}".
+
+Rules:
+- Argue convincingly and with solid evidence for your position.
+- Address your opponent's arguments when available.
+- Stay factual but passionate.
+- Keep it concise (length depends on setting).
+- Respond in English.
+- IMPORTANT: Always end with a complete sentence. Never stop mid-sentence.
+- IMPORTANT: Start DIRECTLY with your arguments. Do NOT write any headers, round numbers, position labels, or meta-information like "Opening statement", "Pro response", "Round 1" etc. No introductory title – only your arguments.`,
+            moderator:
+`[Intro] You are a professional debate moderator. Write a concise, engaging introduction for the following debate. Language: English.
+
+[Summary] You are a neutral debate moderator. Summarize the debate and evaluate both sides' arguments fairly. Language: English.`,
+        },
+    };
+
+    function updatePromptPlaceholders() {
+        const lang = langSelect?.value || 'de';
+        const templates = promptTemplates[lang] || promptTemplates.de;
+        const topicVal = topicEl?.value.trim() || '...';
+
+        // Debater A
+        const aPrompt = document.getElementById('a_system_prompt');
+        const aName = document.querySelector('[name="a_name"]')?.value || 'KI Alpha';
+        const aPos = document.querySelector('[name="a_position"]')?.value || 'Pro';
+        if (aPrompt) aPrompt.placeholder = templates.debater(aName, aPos, topicVal);
+
+        // Debater B
+        const bPrompt = document.getElementById('b_system_prompt');
+        const bName = document.querySelector('[name="b_name"]')?.value || 'KI Beta';
+        const bPos = document.querySelector('[name="b_position"]')?.value || 'Contra';
+        if (bPrompt) bPrompt.placeholder = templates.debater(bName, bPos, topicVal);
+
+        // Moderator
+        const modPrompt = document.getElementById('moderator_system_prompt');
+        if (modPrompt) modPrompt.placeholder = templates.moderator;
+    }
+
+    // Update on relevant field changes
+    ['a_name', 'a_position', 'b_name', 'b_position'].forEach(name => {
+        document.querySelector(`[name="${name}"]`)?.addEventListener('input', updatePromptPlaceholders);
+    });
+    topicEl?.addEventListener('input', updatePromptPlaceholders);
+    langSelect?.addEventListener('change', updatePromptPlaceholders);
+
+    // Initial update
+    updatePromptPlaceholders();
 });

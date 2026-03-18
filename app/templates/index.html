@@ -67,6 +67,8 @@
             <label class="form-label" for="max_tokens">Länge pro Beitrag</label>
             <select id="max_tokens" name="max_tokens" class="form-input">
                 {% set mt = clone.max_tokens|string if clone else '1024' %}
+                <option value="128" {% if mt == '128' %}selected{% endif %}>128 – 2-3 Sätze</option>
+                <option value="256" {% if mt == '256' %}selected{% endif %}>256 – Kurzer Absatz</option>
                 <option value="512" {% if mt == '512' %}selected{% endif %}>512 – Kurz &amp; knapp</option>
                 <option value="1024" {% if mt == '1024' %}selected{% endif %}>1024 – Standard</option>
                 <option value="2048" {% if mt == '2048' %}selected{% endif %}>2048 – Ausführlich</option>
@@ -105,10 +107,12 @@
                     {% endfor %}
                 </select>
             </div>
-            <details class="prompt-details">
-                <summary class="form-label prompt-toggle">System Prompt (optional)</summary>
-                <textarea name="a_system_prompt" rows="3" class="form-input form-textarea"
-                    placeholder="Zusätzliche Anweisungen für diese KI, z.B. 'Argumentiere besonders emotional' oder 'Nutze viele Beispiele aus der Praxis'">{{ clone.a_system_prompt if clone and clone.a_system_prompt else '' }}</textarea>
+            <details class="prompt-details"{% if clone and clone.a_system_prompt %} open{% endif %}>
+                <summary class="form-label prompt-toggle">System Prompt</summary>
+                <textarea name="a_system_prompt" id="a_system_prompt" rows="8" class="form-input form-textarea system-prompt-field" data-side="a"
+                    placeholder="{{ default_prompts[clone.language if clone else 'de'].debater_a }}"
+                    >{{ clone.a_system_prompt if clone and clone.a_system_prompt else '' }}</textarea>
+                <div class="form-help" style="margin-top:4px">Leer lassen = Standard-Prompt (wird automatisch mit Name, Position und Thema erzeugt)</div>
             </details>
         </div>
 
@@ -143,10 +147,12 @@
                     {% endfor %}
                 </select>
             </div>
-            <details class="prompt-details">
-                <summary class="form-label prompt-toggle">System Prompt (optional)</summary>
-                <textarea name="b_system_prompt" rows="3" class="form-input form-textarea"
-                    placeholder="Zusätzliche Anweisungen für diese KI, z.B. 'Sei besonders sarkastisch' oder 'Verwende wissenschaftliche Studien'">{{ clone.b_system_prompt if clone and clone.b_system_prompt else '' }}</textarea>
+            <details class="prompt-details"{% if clone and clone.b_system_prompt %} open{% endif %}>
+                <summary class="form-label prompt-toggle">System Prompt</summary>
+                <textarea name="b_system_prompt" id="b_system_prompt" rows="8" class="form-input form-textarea system-prompt-field" data-side="b"
+                    placeholder="{{ default_prompts[clone.language if clone else 'de'].debater_b }}"
+                    >{{ clone.b_system_prompt if clone and clone.b_system_prompt else '' }}</textarea>
+                <div class="form-help" style="margin-top:4px">Leer lassen = Standard-Prompt (wird automatisch mit Name, Position und Thema erzeugt)</div>
             </details>
         </div>
     </div>
@@ -162,10 +168,12 @@
             <span>Moderator-Zusammenfassung</span>
         </label>
     </div>
-    <details class="prompt-details" style="margin-bottom: 1rem;">
-        <summary class="form-label prompt-toggle">🎙 Moderator System Prompt (optional)</summary>
-        <textarea name="moderator_system_prompt" rows="3" class="form-input form-textarea"
-            placeholder="Benutzerdefinierte Anweisungen für den Moderator, z.B. 'Sei besonders provokant' oder 'Moderiere im Stil eines Sportkommentators'">{{ clone.moderator_system_prompt if clone and clone.moderator_system_prompt else '' }}</textarea>
+    <details class="prompt-details" style="margin-bottom: 1rem;"{% if clone and clone.moderator_system_prompt %} open{% endif %}>
+        <summary class="form-label prompt-toggle">🎙 Moderator System Prompt</summary>
+        <textarea name="moderator_system_prompt" id="moderator_system_prompt" rows="5" class="form-input form-textarea"
+            placeholder="{{ default_prompts[clone.language if clone else 'de'].moderator }}"
+            >{{ clone.moderator_system_prompt if clone and clone.moderator_system_prompt else '' }}</textarea>
+        <div class="form-help" style="margin-top:4px">Leer lassen = Standard-Prompts für Einleitung und Zusammenfassung (sprachabhängig)</div>
     </details>
 
     <!-- Duration estimate -->
