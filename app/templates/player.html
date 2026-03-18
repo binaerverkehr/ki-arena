@@ -707,6 +707,53 @@ let subsAnimFrame = null;        // requestAnimationFrame ID for subtitle sync
 let currentSubs = null;          // word boundary data for current segment
 let subsScrollTarget = null;     // scroll target for subtitle sync
 
+function pauseTyping() {
+    // Pause typing animation without finalizing — keeps state for resume
+    clearInterval(typingInterval);
+    typingInterval = null;
+    if (subsAnimFrame) {
+        cancelAnimationFrame(subsAnimFrame);
+        subsAnimFrame = null;
+    }
+}
+
+function resumeTyping() {
+    // Resume subtitle sync animation after pause
+    if (activeTypingBubble && currentSubs) {
+        let lastWordIdx = -1;
+        function syncFrame() {
+            if (!currentSubs) return;
+            const timeMs = audioEl.currentTime * 1000;
+            let wordIdx = -1;
+            while (wordIdx + 1 < currentSubs.length && currentSubs[wordIdx + 1].offset_ms <= timeMs) {
+                wordIdx++;
+            }
+            if (wordIdx !== lastWordIdx) {
+                lastWordIdx = wordIdx;
+                if (wordIdx >= 0) {
+                    const visible = currentSubs.slice(0, wordIdx + 1).map(w => w.text).join(' ');
+                    activeTypingBubble.innerHTML = visible + '<span class="typing-cursor"></span>';
+                    activeTypingBubble.scrollTop = activeTypingBubble.scrollHeight;
+                    if (subsScrollTarget) subsScrollTarget.scrollTop = subsScrollTarget.scrollHeight;
+                }
+            }
+            if (wordIdx >= currentSubs.length - 1) {
+                const lastW = currentSubs[currentSubs.length - 1];
+                if (timeMs >= lastW.offset_ms + lastW.duration_ms) {
+                    activeTypingBubble.textContent = activeTypingText;
+                    activeTypingBubble = null;
+                    activeTypingText = '';
+                    currentSubs = null;
+                    subsAnimFrame = null;
+                    return;
+                }
+            }
+            subsAnimFrame = requestAnimationFrame(syncFrame);
+        }
+        subsAnimFrame = requestAnimationFrame(syncFrame);
+    }
+}
+
 function finalizeTyping() {
     clearInterval(typingInterval);
     clearInterval(scrollKeepInterval);
@@ -824,10 +871,10 @@ function typeTextWithSubs(element, text, scrollTarget, subs) {
     subsScrollTarget = scrollTarget;
     element.innerHTML = '<span class="typing-cursor"></span>';
 
-    let lastRendered = '';
+    let lastWordIdx = -1;
     function syncFrame() {
         if (!currentSubs) return;
-        const timeMs = audioEl.currentTime * 1000 + 250;  // 250ms lead time
+        const timeMs = audioEl.currentTime * 1000;
 
         // Find the current word index (last word whose offset has been reached)
         let wordIdx = -1;
@@ -835,27 +882,15 @@ function typeTextWithSubs(element, text, scrollTarget, subs) {
             wordIdx++;
         }
 
-        // Build visible text: all completed words + partial current word
-        let visible = '';
-        if (wordIdx >= 0) {
-            // All fully completed words (words before current)
-            const completedWords = subs.slice(0, wordIdx).map(w => w.text).join(' ');
-
-            // Current word: interpolate characters based on time within this word's duration
-            const cur = subs[wordIdx];
-            const elapsed = timeMs - cur.offset_ms;
-            const progress = Math.min(1, elapsed / Math.max(1, cur.duration_ms));
-            const chars = Math.ceil(progress * cur.text.length);
-            const partialWord = cur.text.slice(0, chars);
-
-            visible = completedWords ? completedWords + ' ' + partialWord : partialWord;
-        }
-
-        if (visible !== lastRendered) {
-            lastRendered = visible;
-            element.innerHTML = visible + '<span class="typing-cursor"></span>';
-            element.scrollTop = element.scrollHeight;
-            if (subsScrollTarget) subsScrollTarget.scrollTop = subsScrollTarget.scrollHeight;
+        // Only update DOM when a new word appears (avoids unnecessary reflows)
+        if (wordIdx !== lastWordIdx) {
+            lastWordIdx = wordIdx;
+            if (wordIdx >= 0) {
+                const visible = subs.slice(0, wordIdx + 1).map(w => w.text).join(' ');
+                element.innerHTML = visible + '<span class="typing-cursor"></span>';
+                element.scrollTop = element.scrollHeight;
+                if (subsScrollTarget) subsScrollTarget.scrollTop = subsScrollTarget.scrollHeight;
+            }
         }
 
         // Check if all words fully shown
@@ -1030,7 +1065,7 @@ function togglePlay() {
         audioEl.pause();
         isPlaying = false;
         stopAllSpeaking();
-        finalizeTyping();
+        pauseTyping();
         playBtn.textContent = '▶ Play';
     } else if (currentIdx >= 0) {
         const side = segments[currentIdx].dataset.side;
@@ -1042,6 +1077,7 @@ function togglePlay() {
             const round = segments[currentIdx].dataset.round;
             startModSpeaking(round === '0' ? 'Einleitung' : 'Zusammenfassung');
         }
+        resumeTyping();
         playBtn.textContent = '⏸ Pause';
     } else if (segments.length > 0) {
         playSegment(0);

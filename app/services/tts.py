@@ -87,6 +87,8 @@ async def synthesize(text: str, voice: str, output_path: Path) -> TTSResult:
             })
 
     # Interpolate word-level timings from sentence boundaries
+    # Weight each word's duration by its character count (longer words take
+    # longer to speak).  This is much more accurate than even distribution.
     word_boundaries: list[dict] = []
     for sb in sentence_boundaries:
         words = sb["text"].split()
@@ -94,14 +96,18 @@ async def synthesize(text: str, voice: str, output_path: Path) -> TTSResult:
             continue
         sent_offset = sb["offset_ms"]
         sent_duration = sb["duration_ms"]
-        # Distribute time evenly across words in the sentence
-        word_dur = sent_duration / len(words)
-        for i, w in enumerate(words):
+        total_chars = sum(len(w) for w in words)
+        if total_chars == 0:
+            total_chars = 1
+        cursor = sent_offset
+        for w in words:
+            word_dur = (len(w) / total_chars) * sent_duration
             word_boundaries.append({
-                "offset_ms": round(sent_offset + i * word_dur, 1),
+                "offset_ms": round(cursor, 1),
                 "duration_ms": round(word_dur, 1),
                 "text": w,
             })
+            cursor += word_dur
 
     # Write audio data
     with open(output_path, "wb") as f:
