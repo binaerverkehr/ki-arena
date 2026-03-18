@@ -1022,14 +1022,26 @@ async function playSegment(idx) {
 
     function startSegmentAnimations(duration) {
         if (side === 'mod') {
-            const role = round === '0' ? 'Einleitung' : 'Zusammenfassung';
-            startModSpeaking(role);
+            const modRole = round === '0' ? 'Einleitung' : 'Zusammenfassung';
+            startModSpeaking(modRole);
             const modText = document.getElementById('modTextDisplay');
             if (subs && subs.length > 0) {
                 typeTextWithSubs(modText, text, null, subs);
             } else {
                 typeTextInto(modText, text, null, duration);
             }
+            // Add static message to chat so it persists after overlay hides
+            const msg = document.createElement('div');
+            msg.className = 'message msg-mod';
+            const sender = document.createElement('div');
+            sender.className = 'msg-sender';
+            sender.innerHTML = name + ` <span class="msg-position">${modRole}</span>`;
+            const bubble = document.createElement('div');
+            bubble.className = 'msg-bubble';
+            bubble.textContent = text;
+            msg.appendChild(sender);
+            msg.appendChild(bubble);
+            messagesEl.appendChild(msg);
         } else {
             if (side === 'a') startSpeaking('A');
             else startSpeaking('B');
