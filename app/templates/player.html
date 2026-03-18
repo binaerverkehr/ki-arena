@@ -663,6 +663,22 @@ let currentIdx = -1;
 let isPlaying = false;
 let mouthInterval = null;
 let typingInterval = null;
+let scrollKeepInterval = null;
+let activeTypingBubble = null;  // track the bubble currently being typed into
+let activeTypingText = '';       // full text for that bubble
+
+function finalizeTyping() {
+    clearInterval(typingInterval);
+    clearInterval(scrollKeepInterval);
+    typingInterval = null;
+    scrollKeepInterval = null;
+    // If there's an unfinished bubble, show the full text immediately
+    if (activeTypingBubble) {
+        activeTypingBubble.textContent = activeTypingText;
+        activeTypingBubble = null;
+        activeTypingText = '';
+    }
+}
 
 // === CLEAN MARKDOWN for display ===
 function cleanMarkdown(text) {
@@ -755,8 +771,11 @@ function stopModSpeaking() {
 }
 
 // === TYPING TEXT ===
-function typeTextInto(element, text, onDone) {
-    clearInterval(typingInterval);
+function typeTextInto(element, text, scrollTarget) {
+    finalizeTyping();  // finish any previous typing first
+    activeTypingBubble = element;
+    activeTypingText = text;
+
     const words = text.split(' ');
     let i = 0;
     element.innerHTML = '<span class="typing-cursor"></span>';
@@ -764,19 +783,21 @@ function typeTextInto(element, text, onDone) {
     typingInterval = setInterval(() => {
         if (i < words.length) {
             element.innerHTML = words.slice(0, i + 1).join(' ') + '<span class="typing-cursor"></span>';
-            // Auto-scroll the element if it has overflow
             element.scrollTop = element.scrollHeight;
+            if (scrollTarget) scrollTarget.scrollTop = scrollTarget.scrollHeight;
             i++;
         } else {
             clearInterval(typingInterval);
+            typingInterval = null;
             element.textContent = text;
-            if (onDone) onDone();
+            activeTypingBubble = null;
+            activeTypingText = '';
         }
     }, 80);
 }
 
 function addMessage(side, name, text) {
-    clearInterval(typingInterval);
+    finalizeTyping();  // finish any previous typing first
 
     const msg = document.createElement('div');
     const sideClass = side === 'a' ? 'msg-a' : side === 'b' ? 'msg-b' : 'msg-mod';
@@ -794,16 +815,7 @@ function addMessage(side, name, text) {
     messagesEl.appendChild(msg);
     messagesEl.scrollTop = messagesEl.scrollHeight;
 
-    // Type text into bubble
-    typeTextInto(bubble, text, () => {
-        messagesEl.scrollTop = messagesEl.scrollHeight;
-    });
-
-    // Also keep the messages container scrolled
-    const scrollKeeper = setInterval(() => {
-        messagesEl.scrollTop = messagesEl.scrollHeight;
-    }, 300);
-    setTimeout(() => clearInterval(scrollKeeper), text.split(' ').length * 85 + 1000);
+    typeTextInto(bubble, text, messagesEl);
 }
 
 // === SEGMENT PLAYBACK ===
@@ -811,7 +823,7 @@ function playSegment(idx) {
     if (idx < 0 || idx >= segments.length) return;
 
     stopAllSpeaking();
-    clearInterval(typingInterval);
+    finalizeTyping();
 
     currentIdx = idx;
     const seg = segments[idx];
@@ -857,7 +869,7 @@ function togglePlay() {
         audioEl.pause();
         isPlaying = false;
         stopAllSpeaking();
-        clearInterval(typingInterval);
+        finalizeTyping();
         playBtn.textContent = '▶ Play';
     } else if (currentIdx >= 0) {
         const side = segments[currentIdx].dataset.side;

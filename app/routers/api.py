@@ -32,11 +32,15 @@ class StartDebateRequest(BaseModel):
     a_model: str = ""
     a_voice: str = "de-DE-ConradNeural"
     a_position: str = "Pro"
+    a_system_prompt: str = ""
     # Debater B
     b_name: str = "KI Beta"
     b_model: str = ""
     b_voice: str = "de-DE-AmalaNeural"
     b_position: str = "Contra"
+    b_system_prompt: str = ""
+    # Moderator
+    moderator_system_prompt: str = ""
     # Options – Checkboxen: "true" wenn angehakt, None/fehlend wenn nicht
     moderator_intro: str | None = None
     moderator_summary: str | None = None
@@ -117,17 +121,20 @@ async def start_debate(request: Request):
         max_tokens_per_turn=req.max_tokens,
         moderator_intro=req.wants_intro,
         moderator_summary=req.wants_summary,
+        moderator_system_prompt=req.moderator_system_prompt.strip(),
         debater_a=Debater(
             name=req.a_name.strip(),
             model=req.a_model,
             voice=req.a_voice,
             position=req.a_position.strip(),
+            system_prompt=req.a_system_prompt.strip(),
         ),
         debater_b=Debater(
             name=req.b_name.strip(),
             model=req.b_model,
             voice=req.b_voice,
             position=req.b_position.strip(),
+            system_prompt=req.b_system_prompt.strip(),
         ),
     )
 

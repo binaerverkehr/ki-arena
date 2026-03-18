@@ -105,6 +105,11 @@
                     {% endfor %}
                 </select>
             </div>
+            <details class="prompt-details">
+                <summary class="form-label prompt-toggle">System Prompt (optional)</summary>
+                <textarea name="a_system_prompt" rows="3" class="form-input form-textarea"
+                    placeholder="Zusätzliche Anweisungen für diese KI, z.B. 'Argumentiere besonders emotional' oder 'Nutze viele Beispiele aus der Praxis'">{{ clone.a_system_prompt if clone and clone.a_system_prompt else '' }}</textarea>
+            </details>
         </div>
 
         <!-- VS Badge -->
@@ -138,6 +143,11 @@
                     {% endfor %}
                 </select>
             </div>
+            <details class="prompt-details">
+                <summary class="form-label prompt-toggle">System Prompt (optional)</summary>
+                <textarea name="b_system_prompt" rows="3" class="form-input form-textarea"
+                    placeholder="Zusätzliche Anweisungen für diese KI, z.B. 'Sei besonders sarkastisch' oder 'Verwende wissenschaftliche Studien'">{{ clone.b_system_prompt if clone and clone.b_system_prompt else '' }}</textarea>
+            </details>
         </div>
     </div>
 
@@ -152,6 +162,11 @@
             <span>Moderator-Zusammenfassung</span>
         </label>
     </div>
+    <details class="prompt-details" style="margin-bottom: 1rem;">
+        <summary class="form-label prompt-toggle">🎙 Moderator System Prompt (optional)</summary>
+        <textarea name="moderator_system_prompt" rows="3" class="form-input form-textarea"
+            placeholder="Benutzerdefinierte Anweisungen für den Moderator, z.B. 'Sei besonders provokant' oder 'Moderiere im Stil eines Sportkommentators'">{{ clone.moderator_system_prompt if clone and clone.moderator_system_prompt else '' }}</textarea>
+    </details>
 
     <!-- Duration estimate -->
     <div class="estimate-bar">

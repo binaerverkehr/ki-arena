@@ -65,6 +65,7 @@ class DebateConfig:
     max_tokens_per_turn: int = 1024
     moderator_intro: bool = True
     moderator_summary: bool = True
+    moderator_system_prompt: str = ""
 
 
 @dataclass
@@ -344,9 +345,10 @@ async def run_debate(
         if config.moderator_intro:
             await notify("generating_intro")
             lang = "Deutsch" if config.language == "de" else "English"
+            mod_system = config.moderator_system_prompt or f"Du bist ein professioneller Debattenmoderator. Formuliere eine knappe, spannende Einleitung für die folgende Debatte. Sprache: {lang}."
             intro_resp = await llm.generate(
                 model=config.debater_a.model,  # use debater A's model for intro
-                system=f"Du bist ein professioneller Debattenmoderator. Formuliere eine knappe, spannende Einleitung für die folgende Debatte. Sprache: {lang}.",
+                system=mod_system,
                 messages=[{
                     "role": "user",
                     "content": f"Thema: {config.topic}\n\nTeilnehmer:\n- {config.debater_a.name} (Position: {config.debater_a.position})\n- {config.debater_b.name} (Position: {config.debater_b.position})\n\nAnzahl Runden: {config.num_rounds}",
@@ -403,9 +405,10 @@ async def run_debate(
                 for t in debate.turns
             )
             lang = "Deutsch" if config.language == "de" else "English"
+            summary_system = config.moderator_system_prompt or f"Du bist ein neutraler Debattenmoderator. Fasse die Debatte zusammen und bewerte die Argumente beider Seiten fair. Sprache: {lang}."
             summary_resp = await llm.generate(
                 model=config.debater_a.model,
-                system=f"Du bist ein neutraler Debattenmoderator. Fasse die Debatte zusammen und bewerte die Argumente beider Seiten fair. Sprache: {lang}.",
+                system=summary_system,
                 messages=[{
                     "role": "user",
                     "content": f"Thema: {config.topic}\n\nDebattenverlauf:\n{all_arguments}\n\nBitte fasse zusammen.",
