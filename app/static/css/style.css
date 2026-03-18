@@ -510,6 +510,174 @@ details[open] > .prompt-toggle::before {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* --- Progress Tracker --- */
+.progress-tracker {
+    margin: 2.5rem auto;
+    max-width: 420px;
+    text-align: center;
+}
+
+/* Hero: circular ring + current task */
+.progress-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+.progress-ring {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    margin-bottom: 14px;
+}
+.progress-ring svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+.ring-bg {
+    fill: none;
+    stroke: var(--border);
+    stroke-width: 5;
+}
+.ring-fill {
+    fill: none;
+    stroke: url(#progressGrad);
+    stroke-width: 5;
+    stroke-linecap: round;
+    stroke-dasharray: 264;
+    stroke-dashoffset: 264;
+    transition: stroke-dashoffset 0.6s ease;
+}
+.progress-pct {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Space Mono', monospace;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: 1px;
+}
+.progress-current {
+    font-size: 14px;
+    color: var(--text-muted);
+    min-height: 20px;
+}
+
+/* Stepper */
+.stepper {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    text-align: left;
+}
+.stepper-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 10px 0;
+    position: relative;
+    opacity: 0.35;
+    transition: opacity 0.3s;
+}
+.stepper-item.active { opacity: 1; }
+.stepper-item.done { opacity: 0.65; }
+.stepper-item.error { opacity: 1; }
+
+/* Vertical connector line */
+.stepper-item:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 42px;
+    bottom: -2px;
+    width: 2px;
+    background: var(--border);
+    transition: background 0.3s;
+}
+.stepper-item.done:not(:last-child)::before {
+    background: var(--accent-green);
+}
+
+/* Marker circle */
+.stepper-marker {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.3s;
+    background: var(--bg);
+    position: relative;
+    z-index: 1;
+}
+.stepper-marker span {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-muted);
+    transition: color 0.3s;
+}
+.stepper-item.active .stepper-marker {
+    border-color: var(--accent-a);
+    background: rgba(124, 58, 237, 0.1);
+    box-shadow: 0 0 12px rgba(124, 58, 237, 0.25);
+}
+.stepper-item.active .stepper-marker span { color: var(--accent-a); }
+.stepper-item.done .stepper-marker {
+    border-color: var(--accent-green);
+    background: rgba(46, 204, 113, 0.1);
+}
+.stepper-item.done .stepper-marker span {
+    font-size: 0;
+}
+.stepper-item.done .stepper-marker::after {
+    content: '✓';
+    font-size: 14px;
+    color: var(--accent-green);
+}
+.stepper-item.error .stepper-marker {
+    border-color: var(--accent-b);
+    background: rgba(239, 68, 68, 0.1);
+}
+.stepper-item.error .stepper-marker span { font-size: 0; }
+.stepper-item.error .stepper-marker::after {
+    content: '✕';
+    font-size: 14px;
+    color: var(--accent-b);
+}
+
+/* Stepper content */
+.stepper-content {
+    padding-top: 4px;
+    min-width: 0;
+}
+.stepper-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--text-primary);
+}
+.stepper-label-dim {
+    font-weight: 400;
+    color: var(--text-muted);
+}
+.stepper-detail {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 1px;
+    min-height: 16px;
+}
+.stepper-item.active .stepper-detail { color: var(--accent-a); }
+.stepper-item.error .stepper-detail { color: var(--accent-b); }
+
 /* --- Fade-in animation --- */
 .fade-in {
     animation: fadeIn 0.4s ease-out;

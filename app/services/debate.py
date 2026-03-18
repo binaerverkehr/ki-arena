@@ -465,7 +465,14 @@ async def run_debate(
                 for t in debate.turns
             )
             lang = "Deutsch" if config.language == "de" else "English"
-            summary_system = config.moderator_system_prompt or f"Du bist ein neutraler Debattenmoderator. Fasse die Debatte zusammen und bewerte die Argumente beider Seiten fair. Sprache: {lang}."
+            summary_system = config.moderator_system_prompt or (
+                f"Du bist ein neutraler Debattenmoderator. Fasse die Debatte zusammen und bewerte die Argumente beider Seiten fair.\n"
+                f"Strukturiere deine Antwort mit exakt diesen Markdown-Überschriften:\n"
+                f"### {config.debater_a.name}\n(Bewertung der Argumente von {config.debater_a.name})\n"
+                f"### {config.debater_b.name}\n(Bewertung der Argumente von {config.debater_b.name})\n"
+                f"### Fazit\n(Dein Gesamturteil)\n"
+                f"Sprache: {lang}."
+            )
             summary_resp = await llm.generate(
                 model=config.debater_a.model,
                 system=summary_system,

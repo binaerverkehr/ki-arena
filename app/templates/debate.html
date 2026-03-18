@@ -95,12 +95,68 @@
 </div>
 {% endif %}
 
-<!-- Loading spinner for running debates -->
+<!-- Progress tracker for running debates -->
 {% if debate.status.value in ['pending', 'running', 'generating_audio'] %}
-<div id="loading-indicator" class="loading-section">
-    <div class="spinner"></div>
-    <p id="loading-text">Debatte läuft…</p>
+<div id="loading-indicator" class="progress-tracker">
+    <div class="progress-hero">
+        <div class="progress-ring">
+            <svg viewBox="0 0 100 100">
+                <defs>
+                    <linearGradient id="progressGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#6c5ce7"/>
+                        <stop offset="100%" stop-color="#e74c3c"/>
+                    </linearGradient>
+                </defs>
+                <circle class="ring-bg" cx="50" cy="50" r="42"/>
+                <circle class="ring-fill" id="progressRing" cx="50" cy="50" r="42"/>
+            </svg>
+            <div class="progress-pct" id="progressPct">0%</div>
+        </div>
+        <div class="progress-current" id="progressCurrent">Wird vorbereitet…</div>
+    </div>
+    <div class="stepper">
+        {% set step_idx = {'n': 1} %}
+        {% set total_steps = (1 if debate.config.moderator_intro else 0) + debate.config.num_rounds + (1 if debate.config.moderator_summary else 0) + 1 %}
+        {% if debate.config.moderator_intro %}
+        <div class="stepper-item" id="step-intro" data-step="{{ step_idx.n }}">
+            <div class="stepper-marker"><span>{{ step_idx.n }}</span></div>
+            <div class="stepper-content">
+                <div class="stepper-label">Moderator-Einleitung</div>
+                <div class="stepper-detail" id="step-intro-detail"></div>
+            </div>
+        </div>
+        {% if step_idx.update({'n': step_idx.n + 1}) %}{% endif %}
+        {% endif %}
+        {% for r in range(1, debate.config.num_rounds + 1) %}
+        <div class="stepper-item" id="step-round-{{ r }}" data-step="{{ step_idx.n }}">
+            <div class="stepper-marker"><span>{{ step_idx.n }}</span></div>
+            <div class="stepper-content">
+                <div class="stepper-label">Runde {{ r }} <span class="stepper-label-dim">/ {{ debate.config.num_rounds }}</span></div>
+                <div class="stepper-detail" id="step-round-{{ r }}-detail"></div>
+            </div>
+        </div>
+        {% if step_idx.update({'n': step_idx.n + 1}) %}{% endif %}
+        {% endfor %}
+        {% if debate.config.moderator_summary %}
+        <div class="stepper-item" id="step-summary" data-step="{{ step_idx.n }}">
+            <div class="stepper-marker"><span>{{ step_idx.n }}</span></div>
+            <div class="stepper-content">
+                <div class="stepper-label">Zusammenfassung</div>
+                <div class="stepper-detail" id="step-summary-detail"></div>
+            </div>
+        </div>
+        {% if step_idx.update({'n': step_idx.n + 1}) %}{% endif %}
+        {% endif %}
+        <div class="stepper-item" id="step-audio" data-step="{{ step_idx.n }}">
+            <div class="stepper-marker"><span>{{ step_idx.n }}</span></div>
+            <div class="stepper-content">
+                <div class="stepper-label">Audio-Generierung</div>
+                <div class="stepper-detail" id="step-audio-detail"></div>
+            </div>
+        </div>
+    </div>
 </div>
+<script>const TOTAL_STEPS = {{ total_steps }};</script>
 {% endif %}
 
 {% endblock %}
@@ -117,21 +173,34 @@
 
     const statusText = document.getElementById('status-text');
     const progressText = document.getElementById('progress-text');
-    const loadingText = document.getElementById('loading-text');
 
-    const eventMessages = {
-        'debate_started': 'Debatte gestartet…',
-        'generating_intro': 'Moderator formuliert Einleitung…',
-        'intro_generated': 'Einleitung fertig!',
-        'generating_summary': 'Moderator fasst zusammen…',
-        'summary_generated': 'Zusammenfassung fertig!',
-        'generating_audio': 'Audio wird generiert…',
-        'intro_audio_done': 'Intro-Audio fertig',
-        'intro_audio_skipped': 'Intro-Audio übersprungen (TTS-Fehler)',
-        'summary_audio_done': 'Zusammenfassungs-Audio fertig',
-        'summary_audio_skipped': 'Summary-Audio übersprungen (TTS-Fehler)',
-        'completed': 'Debatte abgeschlossen!',
-    };
+    const ringEl = document.getElementById('progressRing');
+    const pctEl = document.getElementById('progressPct');
+    const currentEl = document.getElementById('progressCurrent');
+    const totalSteps = typeof TOTAL_STEPS !== 'undefined' ? TOTAL_STEPS : 1;
+    let stepsCompleted = 0;
+    let audioTotal = 0;
+    let audioDone = 0;
+    const roundDoneCount = {};  // track how many debaters finished per round
+
+    function setProgress(completed, label) {
+        const pct = Math.round((completed / totalSteps) * 100);
+        const offset = 264 - (264 * pct / 100);
+        if (ringEl) ringEl.style.strokeDashoffset = offset;
+        if (pctEl) pctEl.textContent = pct + '%';
+        if (currentEl && label) currentEl.textContent = label;
+    }
+
+    function setStep(id, state, detail) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.remove('waiting', 'active', 'done', 'error');
+        el.classList.add(state);
+        if (detail !== undefined) {
+            const d = el.querySelector('.stepper-detail');
+            if (d) d.textContent = detail;
+        }
+    }
 
     function connect() {
         ws = new WebSocket(`${wsProtocol}//${location.host}/ws/debate/${debateId}`);
@@ -145,36 +214,76 @@
             // Update status indicator
             statusText.textContent = debate.status.toUpperCase();
 
-            // Build progress message
-            let msg = eventMessages[event] || '';
-
-            if (!msg) {
-                // Parse round events: round_{num}_{name}_thinking/done/error
+            // Drive progress steps
+            if (event === 'generating_intro') {
+                setStep('step-intro', 'active', 'Wird generiert…');
+                setProgress(stepsCompleted, 'Moderator-Einleitung…');
+            } else if (event === 'intro_generated') {
+                stepsCompleted++;
+                setStep('step-intro', 'done', 'Fertig');
+                setProgress(stepsCompleted, 'Einleitung fertig');
+            } else if (event === 'generating_summary') {
+                setStep('step-summary', 'active', 'Wird generiert…');
+                setProgress(stepsCompleted, 'Zusammenfassung…');
+            } else if (event === 'summary_generated') {
+                stepsCompleted++;
+                setStep('step-summary', 'done', 'Fertig');
+                setProgress(stepsCompleted, 'Zusammenfassung fertig');
+            } else if (event === 'generating_audio') {
+                audioTotal = (debate.turns ? debate.turns.length : 0)
+                    + (debate.intro_text ? 1 : 0)
+                    + (debate.summary_text ? 1 : 0);
+                audioDone = 0;
+                setStep('step-audio', 'active', `0 / ${audioTotal} Audiodateien…`);
+                setProgress(stepsCompleted, 'Audio wird generiert…');
+            } else if (event === 'intro_audio_done' || event === 'summary_audio_done') {
+                audioDone++;
+                setStep('step-audio', 'active', `${audioDone} / ${audioTotal} Audiodateien…`);
+                setProgress(stepsCompleted + (audioDone / Math.max(1, audioTotal)), `Audio ${audioDone}/${audioTotal}…`);
+            } else if (event === 'intro_audio_skipped' || event === 'summary_audio_skipped') {
+                audioTotal = Math.max(0, audioTotal - 1);
+                setStep('step-audio', 'active', `${audioDone} / ${audioTotal} Audiodateien…`);
+            } else if (event === 'completed') {
+                stepsCompleted = totalSteps;
+                setStep('step-audio', 'done', 'Fertig');
+                setProgress(totalSteps, 'Debatte abgeschlossen!');
+                progressText.textContent = 'Debatte abgeschlossen!';
+            } else if (event.startsWith('error:')) {
+                progressText.textContent = 'Fehler: ' + event.substring(7);
+                if (currentEl) currentEl.textContent = 'Fehler aufgetreten';
+            } else {
+                // Round events: round_{num}_{name}_thinking/done/error
                 const roundMatch = event.match(/^round_(\d+)_(.+?)_(thinking|done|error)$/);
                 if (roundMatch) {
                     const [, roundNum, name, action] = roundMatch;
-                    if (action === 'thinking') msg = `Runde ${roundNum} – ${name} denkt nach…`;
-                    else if (action === 'done') msg = `Runde ${roundNum} – ${name} hat geantwortet!`;
-                    else if (action === 'error') msg = `Runde ${roundNum} – ${name}: Fehler bei Generierung`;
+                    const stepId = `step-round-${roundNum}`;
+                    if (action === 'thinking') {
+                        setStep(stepId, 'active', `${name} denkt nach…`);
+                        setProgress(stepsCompleted, `Runde ${roundNum} – ${name}…`);
+                    } else if (action === 'done') {
+                        roundDoneCount[roundNum] = (roundDoneCount[roundNum] || 0) + 1;
+                        if (roundDoneCount[roundNum] >= 2) {
+                            stepsCompleted++;
+                            setStep(stepId, 'done', 'Beide Seiten fertig');
+                            setProgress(stepsCompleted, `Runde ${roundNum} abgeschlossen`);
+                        } else {
+                            setStep(stepId, 'active', `${name} fertig`);
+                            setProgress(stepsCompleted, `Runde ${roundNum} – ${name} fertig`);
+                        }
+                    } else if (action === 'error') {
+                        setStep(stepId, 'error', `${name}: Fehler`);
+                    }
                 }
 
                 // Audio turn events
                 const audioMatch = event.match(/^audio_turn_(\d+)_(done|skipped)$/);
                 if (audioMatch) {
-                    const [, idx, status] = audioMatch;
-                    if (status === 'done') msg = `Audio für Beitrag ${parseInt(idx) + 1} generiert`;
-                    else msg = `Audio für Beitrag ${parseInt(idx) + 1} übersprungen`;
+                    const [, , status] = audioMatch;
+                    if (status === 'done') audioDone++;
+                    else audioTotal = Math.max(0, audioTotal - 1);
+                    setStep('step-audio', 'active', `${audioDone} / ${audioTotal} Audiodateien…`);
+                    setProgress(stepsCompleted + (audioDone / Math.max(1, audioTotal)), `Audio ${audioDone}/${audioTotal}…`);
                 }
-
-                // Error events from debate engine
-                if (event.startsWith('error:')) {
-                    msg = 'Fehler: ' + event.substring(7);
-                }
-            }
-
-            if (msg) {
-                progressText.textContent = msg;
-                if (loadingText) loadingText.textContent = msg;
             }
 
             // Reload on completion/error to show final state
