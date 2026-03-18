@@ -236,23 +236,43 @@ def load_debates_from_disk() -> int:
 
 
 def _length_hint(max_tokens: int, lang: str) -> str:
-    """Erzeugt eine konkrete Längenvorgabe passend zum Token-Limit."""
+    """Erzeugt eine konkrete Längenvorgabe passend zur gewählten Beitragslänge.
+
+    Die Satzanzahl im Prompt steuert die tatsächliche Länge – das Token-Limit
+    dient nur als Sicherheitsnetz und wird separat großzügig gesetzt.
+    """
     if lang == "de":
         if max_tokens <= 128:
-            return "Antworte in maximal 2-3 Sätzen. Fasse dich extrem kurz."
+            return "Antworte auf Deutsch, maximal 2-3 Sätze."
         if max_tokens <= 256:
-            return "Antworte in maximal 3-5 Sätzen (ein kurzer Absatz)."
+            return "Antworte auf Deutsch, maximal 4-5 Sätze."
         if max_tokens <= 512:
-            return "Halte dich kurz und prägnant (max. 1-2 Absätze pro Runde)."
-        return "Halte dich kurz und prägnant (max. 2-3 Absätze pro Runde)."
+            return "Antworte auf Deutsch, maximal 6-8 Sätze (1-2 kurze Absätze)."
+        if max_tokens <= 1024:
+            return "Antworte auf Deutsch, maximal 2-3 Absätze."
+        return "Antworte auf Deutsch, maximal 3-4 Absätze."
     else:
         if max_tokens <= 128:
-            return "Reply in 2-3 sentences maximum. Be extremely brief."
+            return "Reply in English, 2-3 sentences maximum."
         if max_tokens <= 256:
-            return "Reply in 3-5 sentences maximum (one short paragraph)."
+            return "Reply in English, 4-5 sentences maximum."
         if max_tokens <= 512:
-            return "Keep it concise (max 1-2 paragraphs per round)."
-        return "Keep it concise (max 2-3 paragraphs per round)."
+            return "Reply in English, 6-8 sentences maximum (1-2 short paragraphs)."
+        if max_tokens <= 1024:
+            return "Reply in English, 2-3 paragraphs maximum."
+        return "Reply in English, 3-4 paragraphs maximum."
+
+
+# Maps the user-chosen "length" setting to a generous max_tokens ceiling.
+# The prompt instruction controls actual length; this just prevents runaway output.
+_TOKEN_CEILING = {
+    128: 400,
+    256: 600,
+    512: 800,
+    1024: 1024,
+    2048: 2048,
+    4096: 4096,
+}
 
 
 def _build_system_prompt(debater: Debater, config: DebateConfig) -> str:
@@ -275,8 +295,6 @@ Regeln:
 - Beziehe dich auf Argumente deines Gegenübers, wenn vorhanden.
 - Bleib sachlich, aber leidenschaftlich.
 - {length}
-- Antworte auf Deutsch.
-- WICHTIG: Schließe deinen Beitrag IMMER mit einem vollständigen Satz ab. Brich niemals mitten im Satz ab.
 - WICHTIG: Beginne DIREKT mit deinen Argumenten. Schreibe KEINE Überschriften, Rundennummern, Positionsbezeichnungen oder Meta-Informationen wie "Eröffnungsstatement", "Pro-Antwort", "Runde 1" etc. Kein einleitender Titel – nur deine Argumente."""
     else:
         return f"""You are {debater.name}, an eloquent debate participant.
@@ -287,8 +305,6 @@ Rules:
 - Address your opponent's arguments when available.
 - Stay factual but passionate.
 - {length}
-- Respond in English.
-- IMPORTANT: Always end with a complete sentence. Never stop mid-sentence.
 - IMPORTANT: Start DIRECTLY with your arguments. Do NOT write any headers, round numbers, position labels, or meta-information like "Opening statement", "Pro response", "Round 1" etc. No introductory title – only your arguments."""
 
 
@@ -407,11 +423,15 @@ async def run_debate(
                 messages = _build_messages(debate, debater, round_num, config)
 
                 try:
+                    token_ceiling = _TOKEN_CEILING.get(
+                        config.max_tokens_per_turn,
+                        config.max_tokens_per_turn,
+                    )
                     resp = await llm.generate(
                         model=debater.model,
                         system=system,
                         messages=messages,
-                        max_tokens=config.max_tokens_per_turn,
+                        max_tokens=token_ceiling,
                     )
                     content = resp.content
                     tokens = resp.tokens_used
