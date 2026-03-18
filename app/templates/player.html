@@ -3,322 +3,650 @@
 
 {% block head %}
 <style>
-    .player-wrap {
-        max-width: 900px;
-        margin: 0 auto;
-    }
-    .player-topic {
-        font-family: 'Outfit', sans-serif;
-        font-weight: 800;
-        font-size: clamp(1.4rem, 3vw, 2rem);
-        text-align: center;
-        margin-bottom: 0.5rem;
-        color: var(--text-primary);
-    }
-    .player-meta {
-        text-align: center;
-        color: var(--text-muted);
-        font-size: 0.85rem;
-        margin-bottom: 2rem;
-    }
-    /* Visualizer */
-    .visualizer-area {
+    /* Hide default container padding – we need full viewport */
+    .container { max-width: 100%; padding: 0; }
+    .topbar { display: none; }
+    body { overflow: hidden; }
+
+    /* === LAYOUT === */
+    .arena {
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        height: 100vh;
         position: relative;
-        background: var(--surface-2);
-        border-radius: 16px;
+    }
+
+    /* === HEADER === */
+    .arena-header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        padding: 14px 24px;
+        border-bottom: 1px solid var(--border);
+        background: rgba(10, 10, 15, 0.85);
+        backdrop-filter: blur(20px);
+    }
+    .arena-header h1 {
+        font-family: 'Space Mono', monospace;
+        font-size: 13px;
+        letter-spacing: 5px;
+        text-transform: uppercase;
+        color: var(--text-muted);
+    }
+    .arena-header h1 .fire {
+        background: linear-gradient(135deg, var(--accent-a), var(--accent-b));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 700;
+    }
+    .round-badge {
+        font-family: 'Space Mono', monospace;
+        font-size: 11px;
+        color: var(--text-muted);
         border: 1px solid var(--border);
-        padding: 2rem;
-        margin-bottom: 1.5rem;
-        min-height: 220px;
+        padding: 3px 12px;
+        border-radius: 20px;
+        letter-spacing: 2px;
+    }
+
+    /* === BATTLE AREA === */
+    .battle-area {
+        display: grid;
+        grid-template-columns: 220px 1fr 220px;
+        overflow: hidden;
+    }
+
+    /* === AVATAR PANELS === */
+    .avatar-panel {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
+        padding: 24px 16px;
+        position: relative;
+        overflow: hidden;
+        transition: opacity 0.4s;
+    }
+    .avatar-panel.side-a {
+        background: linear-gradient(180deg, rgba(124, 58, 237, 0.12) 0%, var(--bg) 100%);
+        border-right: 1px solid var(--border);
+    }
+    .avatar-panel.side-b {
+        background: linear-gradient(180deg, rgba(239, 68, 68, 0.12) 0%, var(--bg) 100%);
+        border-left: 1px solid var(--border);
+    }
+
+    /* Avatar */
+    .avatar-container {
+        position: relative;
+        width: 130px;
+        height: 130px;
+        margin-bottom: 16px;
+    }
+    .avatar-ring {
+        position: absolute;
+        inset: -8px;
+        border-radius: 50%;
+        border: 2px solid transparent;
+        transition: all 0.5s ease;
+    }
+    .side-a .avatar-ring { border-color: rgba(124, 58, 237, 0.25); }
+    .side-b .avatar-ring { border-color: rgba(239, 68, 68, 0.25); }
+
+    .avatar-ring.speaking {
+        animation: ringPulse 1.5s ease-in-out infinite;
+    }
+    .side-a .avatar-ring.speaking {
+        border-color: var(--accent-a);
+        box-shadow: 0 0 30px rgba(124, 58, 237, 0.35), inset 0 0 30px rgba(124, 58, 237, 0.1);
+    }
+    .side-b .avatar-ring.speaking {
+        border-color: var(--accent-b);
+        box-shadow: 0 0 30px rgba(239, 68, 68, 0.35), inset 0 0 30px rgba(239, 68, 68, 0.1);
+    }
+    @keyframes ringPulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.08); opacity: 0.7; }
+    }
+
+    .avatar-face {
+        width: 130px;
+        height: 130px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
         overflow: hidden;
     }
-    .visualizer-bg {
-        position: absolute;
-        inset: 0;
-        opacity: 0.08;
-        background: radial-gradient(circle at 30% 40%, var(--accent-a) 0%, transparent 50%),
-                    radial-gradient(circle at 70% 60%, var(--accent-b) 0%, transparent 50%);
-        transition: opacity 0.6s;
-    }
-    .visualizer-area.playing .visualizer-bg { opacity: 0.18; }
+    .side-a .avatar-face { background: radial-gradient(circle at 40% 40%, #1a0f2e, #0d0718); }
+    .side-b .avatar-face { background: radial-gradient(circle at 40% 40%, #2a1010, #150707); }
+    .face-svg { width: 100%; height: 100%; }
 
-    .speaker-name {
-        font-family: 'Outfit', sans-serif;
-        font-weight: 800;
-        font-size: 1.6rem;
-        color: var(--text-primary);
-        z-index: 1;
-        transition: all 0.4s ease;
-    }
-    .speaker-role {
+    /* Avatar info */
+    .avatar-name {
         font-family: 'Space Mono', monospace;
-        font-size: 0.8rem;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 3px;
         text-transform: uppercase;
-        letter-spacing: 0.15em;
-        color: var(--text-muted);
-        margin-top: 0.3rem;
-        z-index: 1;
+        margin-bottom: 4px;
     }
-    .speaker-model {
-        font-size: 0.75rem;
-        color: var(--text-dim);
-        margin-top: 0.25rem;
-        z-index: 1;
+    .side-a .avatar-name { color: var(--accent-a); }
+    .side-b .avatar-name { color: var(--accent-b); }
+
+    .avatar-model {
+        font-size: 10px;
+        color: var(--text-muted);
+        letter-spacing: 1px;
     }
 
-    /* Waveform bars */
-    .wave-bars {
+    .status-indicator {
+        margin-top: 12px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-family: 'Space Mono', monospace;
+        font-size: 10px;
+        color: var(--text-muted);
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }
+    .status-dot {
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: var(--text-muted);
+        transition: all 0.3s;
+    }
+    .status-dot.active { animation: dotPulse 1s ease-in-out infinite; }
+    .side-a .status-dot.active { background: var(--accent-a); box-shadow: 0 0 10px var(--accent-a); }
+    .side-b .status-dot.active { background: var(--accent-b); box-shadow: 0 0 10px var(--accent-b); }
+    @keyframes dotPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    /* Sound wave */
+    .sound-wave {
         display: flex;
         gap: 3px;
         align-items: center;
-        height: 50px;
-        margin-top: 1.2rem;
-        z-index: 1;
+        height: 28px;
+        margin-top: 12px;
+        opacity: 0;
+        transition: opacity 0.3s;
     }
-    .wave-bar {
-        width: 4px;
-        background: var(--accent-a);
+    .sound-wave.active { opacity: 1; }
+    .sw-bar {
+        width: 3px; height: 4px;
         border-radius: 2px;
-        height: 10px;
-        transition: height 0.15s ease;
+        transition: height 0.1s;
     }
-    .visualizer-area.playing .wave-bar {
-        animation: waveAnim 0.6s ease-in-out infinite alternate;
-    }
-    .wave-bar:nth-child(odd) { animation-delay: 0.1s; }
-    .wave-bar:nth-child(3n) { animation-delay: 0.2s; }
-    .wave-bar:nth-child(5n) { animation-delay: 0.05s; }
+    .side-a .sw-bar { background: var(--accent-a); }
+    .side-b .sw-bar { background: var(--accent-b); }
+    .sound-wave.active .sw-bar { animation: waveAnim 0.8s ease-in-out infinite; }
+    .sw-bar:nth-child(1) { animation-delay: 0s; }
+    .sw-bar:nth-child(2) { animation-delay: 0.1s; }
+    .sw-bar:nth-child(3) { animation-delay: 0.2s; }
+    .sw-bar:nth-child(4) { animation-delay: 0.15s; }
+    .sw-bar:nth-child(5) { animation-delay: 0.05s; }
+    .sw-bar:nth-child(6) { animation-delay: 0.25s; }
+    .sw-bar:nth-child(7) { animation-delay: 0.12s; }
     @keyframes waveAnim {
-        0% { height: 6px; }
-        100% { height: 45px; }
-    }
-    .visualizer-area.is-b .wave-bar { background: var(--accent-b); }
-
-    /* Current text */
-    .current-text {
-        margin-top: 1rem;
-        padding: 1rem;
-        font-size: 0.95rem;
-        line-height: 1.7;
-        color: var(--text-secondary);
-        max-height: 160px;
-        overflow-y: auto;
-        z-index: 1;
-        text-align: center;
-        width: 100%;
+        0%, 100% { height: 4px; }
+        50% { height: 22px; }
     }
 
-    /* Transport controls */
-    .transport {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 1rem;
-        margin-bottom: 1.5rem;
-    }
-    .transport-btn {
-        background: var(--surface-2);
-        border: 1px solid var(--border);
-        border-radius: 50%;
-        width: 48px;
-        height: 48px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        font-size: 1.2rem;
-        color: var(--text-primary);
-        transition: all 0.2s;
-    }
-    .transport-btn:hover { border-color: var(--accent-a); background: var(--surface-3); }
-    .transport-btn.play-btn {
-        width: 64px;
-        height: 64px;
-        font-size: 1.5rem;
-        background: var(--accent-a);
-        border-color: var(--accent-a);
-        color: #fff;
-    }
-    .transport-btn.play-btn:hover { opacity: 0.9; transform: scale(1.05); }
-
-    /* Segment list */
-    .segment-list {
+    /* === MODERATOR OVERLAY === */
+    .mod-overlay {
+        position: absolute;
+        inset: 0;
         display: flex;
         flex-direction: column;
-        gap: 0.4rem;
+        align-items: center;
+        justify-content: flex-start;
+        padding-top: 60px;
+        background: rgba(10, 10, 15, 0.88);
+        backdrop-filter: blur(8px);
+        z-index: 10;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.5s ease;
     }
-    .segment-item {
+    .mod-overlay.visible {
+        opacity: 1;
+        pointer-events: auto;
+    }
+    .mod-avatar-container {
+        position: relative;
+        width: 100px;
+        height: 100px;
+        margin-bottom: 12px;
+    }
+    .mod-avatar-ring {
+        position: absolute;
+        inset: -6px;
+        border-radius: 50%;
+        border: 2px solid rgba(200, 200, 220, 0.2);
+        transition: all 0.5s ease;
+    }
+    .mod-avatar-ring.speaking {
+        border-color: rgba(200, 200, 220, 0.7);
+        box-shadow: 0 0 25px rgba(200, 200, 220, 0.2), inset 0 0 25px rgba(200, 200, 220, 0.05);
+        animation: ringPulse 1.5s ease-in-out infinite;
+    }
+    .mod-avatar-face {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
         display: flex;
         align-items: center;
-        gap: 0.75rem;
-        padding: 0.7rem 1rem;
-        border-radius: 10px;
-        border: 1px solid var(--border);
-        background: var(--surface-1);
-        cursor: pointer;
-        transition: all 0.2s;
-        font-size: 0.88rem;
-    }
-    .segment-item:hover { background: var(--surface-2); border-color: var(--accent-a); }
-    .segment-item.active {
-        border-color: var(--accent-a);
-        background: var(--surface-3);
-        box-shadow: 0 0 0 1px var(--accent-a);
-    }
-    .segment-item.is-b.active { border-color: var(--accent-b); box-shadow: 0 0 0 1px var(--accent-b); }
-    .seg-icon { font-size: 1.1rem; flex-shrink: 0; }
-    .seg-label { flex: 1; color: var(--text-primary); font-weight: 500; }
-    .seg-round { color: var(--text-muted); font-family: 'Space Mono', monospace; font-size: 0.75rem; }
-    .seg-playing { display: none; color: var(--accent-a); font-size: 0.75rem; }
-    .segment-item.active .seg-playing { display: inline; }
-
-    /* Error segment */
-    .seg-error { opacity: 0.5; border-color: var(--accent-b) !important; }
-    .seg-error .seg-label::after {
-        content: ' (kein Audio)';
-        font-size: 0.7rem;
-        color: var(--text-dim);
-    }
-
-    /* Mobile */
-    @media (max-width: 600px) {
-        .keyboard-hint { display: none; }
-        .transport-btn { width: 42px; height: 42px; font-size: 1rem; }
-        .transport-btn.play-btn { width: 56px; height: 56px; font-size: 1.3rem; }
-        .player-wrap { padding: 0 0.25rem; }
-        .visualizer-area { padding: 1.25rem; min-height: 180px; }
-        .current-text { font-size: 0.85rem; max-height: 100px; }
-    }
-
-    /* Keyboard shortcut hint */
-    .keyboard-hint {
-        display: flex;
         justify-content: center;
-        gap: 1.2rem;
-        flex-wrap: wrap;
-        margin-bottom: 1.5rem;
-        font-size: 0.72rem;
-        color: var(--text-dim);
+        background: radial-gradient(circle at 40% 40%, #1a1a24, #0d0d14);
+        overflow: hidden;
     }
-    /* Segment counter */
-    .segment-counter {
-        text-align: center;
+    .mod-avatar-face .face-svg { width: 100%; height: 100%; }
+    .mod-name {
         font-family: 'Space Mono', monospace;
-        font-size: 0.78rem;
-        color: var(--text-dim);
-        margin-bottom: 0.5rem;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        color: rgba(200, 200, 220, 0.8);
+        margin-bottom: 4px;
     }
-    .keyboard-hint span { display: flex; align-items: center; gap: 0.3rem; }
-    .keyboard-hint kbd {
+    .mod-role {
+        font-size: 10px;
+        color: var(--text-muted);
+        letter-spacing: 1px;
+        margin-bottom: 16px;
+    }
+    .mod-wave {
+        display: flex;
+        gap: 3px;
+        align-items: center;
+        height: 24px;
+        margin-bottom: 20px;
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+    .mod-wave.active { opacity: 1; }
+    .mod-wave .sw-bar { background: rgba(200, 200, 220, 0.6); }
+    .mod-wave.active .sw-bar { animation: waveAnim 0.8s ease-in-out infinite; }
+    .mod-text-display {
+        max-width: 560px;
+        width: 90%;
+        max-height: 45vh;
+        overflow-y: auto;
+        padding: 16px 20px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        font-size: 14px;
+        line-height: 1.7;
+        color: var(--text-primary);
+        font-weight: 300;
+    }
+    .mod-text-display::-webkit-scrollbar { width: 4px; }
+    .mod-text-display::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* === CHAT ZONE === */
+    .chat-zone {
+        display: flex;
+        flex-direction: column;
+        background: var(--surface-1);
+        position: relative;
+        overflow: hidden;
+    }
+    .chat-zone::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 50px;
+        background: linear-gradient(to bottom, var(--surface-1), transparent);
+        z-index: 2;
+        pointer-events: none;
+    }
+
+    .topic-banner {
+        padding: 16px 24px;
+        text-align: center;
+        border-bottom: 1px solid var(--border);
+        background: rgba(18, 18, 26, 0.9);
+        backdrop-filter: blur(10px);
+        position: relative;
+        z-index: 3;
+    }
+    .topic-label {
+        font-family: 'Space Mono', monospace;
+        font-size: 10px;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        margin-bottom: 4px;
+    }
+    .topic-text {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text-primary);
+        line-height: 1.4;
+    }
+
+    .messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 24px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        scroll-behavior: smooth;
+    }
+    .messages::-webkit-scrollbar { width: 4px; }
+    .messages::-webkit-scrollbar-track { background: transparent; }
+    .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* Message bubbles */
+    .message {
+        max-width: 88%;
+        opacity: 0;
+        transform: translateY(16px);
+        animation: msgAppear 0.4s ease forwards;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .message.msg-a { align-self: flex-start; }
+    .message.msg-b { align-self: flex-end; }
+    .message.msg-mod { align-self: center; max-width: 92%; }
+
+    .msg-sender {
+        font-family: 'Space Mono', monospace;
+        font-size: 10px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        padding: 0 4px;
+    }
+    .msg-a .msg-sender { color: var(--accent-a); }
+    .msg-b .msg-sender { color: var(--accent-b); text-align: right; }
+    .msg-mod .msg-sender { color: var(--text-muted); text-align: center; }
+
+    .msg-bubble {
+        padding: 12px 16px;
+        border-radius: 14px;
+        font-size: 13.5px;
+        line-height: 1.65;
+        font-weight: 300;
+        position: relative;
+    }
+    .msg-a .msg-bubble {
+        background: rgba(124, 58, 237, 0.08);
+        border: 1px solid rgba(124, 58, 237, 0.18);
+        border-bottom-left-radius: 4px;
+    }
+    .msg-b .msg-bubble {
+        background: rgba(239, 68, 68, 0.08);
+        border: 1px solid rgba(239, 68, 68, 0.18);
+        border-bottom-right-radius: 4px;
+    }
+    .msg-mod .msg-bubble {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--border);
+        font-style: italic;
+    }
+
+    .typing-cursor {
         display: inline-block;
-        padding: 1px 6px;
+        width: 2px; height: 14px;
+        background: currentColor;
+        margin-left: 2px;
+        vertical-align: middle;
+        animation: blink 0.8s step-end infinite;
+    }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+    @keyframes msgAppear { to { opacity: 1; transform: translateY(0); } }
+
+    /* === CONTROLS === */
+    .controls {
+        padding: 12px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        border-top: 1px solid var(--border);
+        background: rgba(10, 10, 15, 0.9);
+        backdrop-filter: blur(20px);
+    }
+    .ctrl-btn {
+        font-family: 'Space Mono', monospace;
+        font-size: 11px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--text-muted);
+        padding: 8px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.3s;
+        text-decoration: none;
+    }
+    .ctrl-btn:hover { border-color: var(--text-muted); color: var(--text-primary); }
+    .ctrl-btn.primary {
+        background: linear-gradient(135deg, var(--accent-a), var(--accent-b));
+        border: none;
+        color: #fff;
+        font-weight: 700;
+        padding: 10px 28px;
+    }
+    .ctrl-btn.primary:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(124, 58, 237, 0.3); }
+    .ctrl-btn.primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    .turn-counter {
+        font-family: 'Space Mono', monospace;
+        font-size: 11px;
+        color: var(--text-muted);
+        letter-spacing: 1px;
+    }
+    .keyboard-hint-bar {
+        font-family: 'Space Mono', monospace;
+        font-size: 10px;
+        color: var(--text-dim);
+        display: flex;
+        gap: 12px;
+        margin-left: auto;
+    }
+    .keyboard-hint-bar kbd {
+        padding: 1px 5px;
         background: var(--surface-2);
         border: 1px solid var(--border);
-        border-radius: 4px;
-        font-family: 'Space Mono', monospace;
-        font-size: 0.68rem;
-        color: var(--text-muted);
-        line-height: 1.6;
+        border-radius: 3px;
+        font-size: 9px;
+    }
+
+    /* === RESPONSIVE === */
+    @media (max-width: 900px) {
+        .battle-area {
+            grid-template-columns: 1fr;
+            grid-template-rows: 1fr;
+        }
+        .avatar-panel { display: none; }
+        .chat-zone { min-height: 70vh; }
+        .keyboard-hint-bar { display: none; }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="player-wrap">
-    <a href="/debate/{{ debate.id }}" class="back-link">← Zur Debatte</a>
-
-    <p class="player-topic">{{ debate.config.topic }}</p>
-    <p class="player-meta">
-        {{ debate.config.debater_a.name }} vs {{ debate.config.debater_b.name }}
-        · {{ debate.config.num_rounds }} Runden
-    </p>
-
-    {% if debate.status.value != 'completed' %}
-    <div class="notice notice-info" style="text-align:center; margin-bottom:2rem;">
-        {% if debate.status.value == 'error' %}
-            Die Debatte wurde mit einem Fehler beendet. Einige Audio-Segmente könnten fehlen.<br>
-            <small>{{ debate.error }}</small>
-        {% else %}
-            Die Debatte läuft noch. Audio-Segmente werden nach Abschluss hier verfügbar.<br>
-            <a href="/debate/{{ debate.id }}" style="color: var(--accent-a);">← Zur Live-Ansicht</a>
-        {% endif %}
+<div class="arena">
+    <!-- HEADER -->
+    <div class="arena-header">
+        <h1><span class="fire">KI Arena</span></h1>
+        <span class="round-badge" id="roundBadge">BEREIT</span>
+        <span class="turn-counter" id="turnCounter"></span>
     </div>
+
+    <!-- BATTLE AREA -->
+    <div class="battle-area">
+
+        <!-- DEBATER A AVATAR -->
+        <div class="avatar-panel side-a">
+            <div class="avatar-container">
+                <div class="avatar-ring" id="ringA"></div>
+                <div class="avatar-face">
+                    <svg class="face-svg" viewBox="0 0 140 140">
+                        <defs>
+                            <radialGradient id="glowA" cx="50%" cy="45%" r="50%">
+                                <stop offset="0%" stop-color="#7c3aed" stop-opacity="0.15"/>
+                                <stop offset="100%" stop-color="#7c3aed" stop-opacity="0"/>
+                            </radialGradient>
+                        </defs>
+                        <circle cx="70" cy="70" r="60" fill="url(#glowA)"/>
+                        <ellipse cx="50" cy="58" rx="8" ry="9" fill="#7c3aed" opacity="0.9"/>
+                        <ellipse cx="90" cy="58" rx="8" ry="9" fill="#7c3aed" opacity="0.9"/>
+                        <circle cx="52" cy="57" r="3" fill="#0a0a0f"/>
+                        <circle cx="92" cy="57" r="3" fill="#0a0a0f"/>
+                        <circle cx="54" cy="55" r="1.5" fill="white" opacity="0.8"/>
+                        <circle cx="94" cy="55" r="1.5" fill="white" opacity="0.8"/>
+                        <path id="mouthA" d="M 52 88 Q 70 95 88 88" stroke="#7c3aed" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.8"/>
+                        <circle cx="70" cy="28" r="4" fill="none" stroke="#7c3aed" stroke-width="1.5" opacity="0.4"/>
+                        <line x1="70" y1="32" x2="70" y2="42" stroke="#7c3aed" stroke-width="1" opacity="0.3"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="avatar-name">{{ debate.config.debater_a.name }}</div>
+            <div class="avatar-model">{{ debate.config.debater_a.model }}</div>
+            <div class="status-indicator">
+                <div class="status-dot" id="dotA"></div>
+                <span id="statusA">Bereit</span>
+            </div>
+            <div class="sound-wave" id="waveA">
+                <div class="sw-bar"></div><div class="sw-bar"></div><div class="sw-bar"></div>
+                <div class="sw-bar"></div><div class="sw-bar"></div><div class="sw-bar"></div><div class="sw-bar"></div>
+            </div>
+        </div>
+
+        <!-- CHAT ZONE -->
+        <div class="chat-zone">
+            <div class="topic-banner">
+                <div class="topic-label">Debatte</div>
+                <div class="topic-text">{{ debate.config.topic }}</div>
+            </div>
+            <div class="messages" id="messages"></div>
+
+            <!-- MODERATOR OVERLAY -->
+            <div class="mod-overlay" id="modOverlay">
+                <div class="mod-avatar-container">
+                    <div class="mod-avatar-ring" id="modRing"></div>
+                    <div class="mod-avatar-face">
+                        <svg class="face-svg" viewBox="0 0 140 140">
+                            <defs>
+                                <radialGradient id="glowMod" cx="50%" cy="45%" r="50%">
+                                    <stop offset="0%" stop-color="#c8c8dc" stop-opacity="0.12"/>
+                                    <stop offset="100%" stop-color="#c8c8dc" stop-opacity="0"/>
+                                </radialGradient>
+                            </defs>
+                            <circle cx="70" cy="70" r="60" fill="url(#glowMod)"/>
+                            <!-- Moderator: friendly round eyes -->
+                            <circle cx="50" cy="56" r="8" fill="#c8c8dc" opacity="0.85"/>
+                            <circle cx="90" cy="56" r="8" fill="#c8c8dc" opacity="0.85"/>
+                            <circle cx="52" cy="55" r="3" fill="#0a0a0f"/>
+                            <circle cx="92" cy="55" r="3" fill="#0a0a0f"/>
+                            <circle cx="53" cy="53" r="1.5" fill="white" opacity="0.8"/>
+                            <circle cx="93" cy="53" r="1.5" fill="white" opacity="0.8"/>
+                            <!-- Mouth -->
+                            <path id="mouthMod" d="M 52 88 Q 70 95 88 88" stroke="#c8c8dc" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.7"/>
+                            <!-- Headset/mic detail -->
+                            <path d="M 30 55 Q 28 40 40 30" stroke="#c8c8dc" stroke-width="1.5" fill="none" opacity="0.3"/>
+                            <circle cx="28" cy="58" r="5" fill="none" stroke="#c8c8dc" stroke-width="1.5" opacity="0.3"/>
+                            <line x1="28" y1="63" x2="35" y2="78" stroke="#c8c8dc" stroke-width="1" opacity="0.25"/>
+                            <circle cx="36" cy="80" r="3" fill="#c8c8dc" opacity="0.2"/>
+                        </svg>
+                    </div>
+                </div>
+                <div class="mod-name">Moderator</div>
+                <div class="mod-role" id="modRole">Einleitung</div>
+                <div class="mod-wave" id="modWave">
+                    <div class="sw-bar"></div><div class="sw-bar"></div><div class="sw-bar"></div>
+                    <div class="sw-bar"></div><div class="sw-bar"></div><div class="sw-bar"></div><div class="sw-bar"></div>
+                </div>
+                <div class="mod-text-display" id="modTextDisplay"></div>
+            </div>
+        </div>
+
+        <!-- DEBATER B AVATAR -->
+        <div class="avatar-panel side-b">
+            <div class="avatar-container">
+                <div class="avatar-ring" id="ringB"></div>
+                <div class="avatar-face">
+                    <svg class="face-svg" viewBox="0 0 140 140">
+                        <defs>
+                            <radialGradient id="glowB" cx="50%" cy="45%" r="50%">
+                                <stop offset="0%" stop-color="#ef4444" stop-opacity="0.15"/>
+                                <stop offset="100%" stop-color="#ef4444" stop-opacity="0"/>
+                            </radialGradient>
+                        </defs>
+                        <circle cx="70" cy="70" r="60" fill="url(#glowB)"/>
+                        <rect x="42" y="50" width="16" height="14" rx="4" fill="#ef4444" opacity="0.9"/>
+                        <rect x="82" y="50" width="16" height="14" rx="4" fill="#ef4444" opacity="0.9"/>
+                        <circle cx="52" cy="57" r="3" fill="#0a0a0f"/>
+                        <circle cx="92" cy="57" r="3" fill="#0a0a0f"/>
+                        <circle cx="54" cy="55" r="1.5" fill="white" opacity="0.8"/>
+                        <circle cx="94" cy="55" r="1.5" fill="white" opacity="0.8"/>
+                        <path id="mouthB" d="M 52 88 Q 70 95 88 88" stroke="#ef4444" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.8"/>
+                        <polygon points="70,24 76,34 64,34" fill="none" stroke="#ef4444" stroke-width="1.5" opacity="0.4"/>
+                        <line x1="70" y1="34" x2="70" y2="42" stroke="#ef4444" stroke-width="1" opacity="0.3"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="avatar-name">{{ debate.config.debater_b.name }}</div>
+            <div class="avatar-model">{{ debate.config.debater_b.model }}</div>
+            <div class="status-indicator">
+                <div class="status-dot" id="dotB"></div>
+                <span id="statusB">Bereit</span>
+            </div>
+            <div class="sound-wave" id="waveB">
+                <div class="sw-bar"></div><div class="sw-bar"></div><div class="sw-bar"></div>
+                <div class="sw-bar"></div><div class="sw-bar"></div><div class="sw-bar"></div><div class="sw-bar"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONTROLS -->
+    <div class="controls">
+        <button class="ctrl-btn" onclick="prevSegment()">⏮ Zurück</button>
+        <button class="ctrl-btn primary" id="playBtn" onclick="togglePlay()">▶ Play</button>
+        <button class="ctrl-btn" onclick="nextSegment()">Weiter ⏭</button>
+        <a href="/debate/{{ debate.id }}" class="ctrl-btn">← Debatte</a>
+        <div class="keyboard-hint-bar">
+            <span><kbd>Space</kbd> Play</span>
+            <span><kbd>←</kbd><kbd>→</kbd> Segment</span>
+            <span><kbd>M</kbd> Stumm</span>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden segment data -->
+<div id="segmentData" style="display:none">
+    {% if debate.intro_audio %}
+    <div class="seg" data-src="/audio/{{ debate.id }}/{{ debate.intro_audio }}"
+         data-name="Moderator" data-role="Einleitung" data-model=""
+         data-text="{{ debate.intro_text|e }}" data-side="mod" data-round="0"></div>
     {% endif %}
-
-    <!-- Visualizer -->
-    <div class="visualizer-area" id="visualizer">
-        <div class="visualizer-bg"></div>
-        <div class="speaker-name" id="speakerName">Bereit</div>
-        <div class="speaker-role" id="speakerRole">Drücke Play zum Starten</div>
-        <div class="speaker-model" id="speakerModel"></div>
-        <div class="wave-bars" id="waveBars">
-            {% for i in range(24) %}
-            <div class="wave-bar" style="animation-delay: {{ (i * 0.04)|round(2) }}s"></div>
-            {% endfor %}
-        </div>
-        <div class="current-text" id="currentText"></div>
-    </div>
-
-    <!-- Transport -->
-    <div class="transport">
-        <button class="transport-btn" onclick="prevSegment()" title="Zurück (←)">⏮</button>
-        <button class="transport-btn play-btn" id="playBtn" onclick="togglePlay()" title="Play/Pause (Leertaste)">▶</button>
-        <button class="transport-btn" onclick="nextSegment()" title="Weiter (→)">⏭</button>
-    </div>
-    <div id="segmentCounter" class="segment-counter">– / –</div>
-    <div class="keyboard-hint">
-        <span><kbd>Space</kbd> Play/Pause</span>
-        <span><kbd>←</kbd><kbd>→</kbd> Segment</span>
-        <span><kbd>↑</kbd><kbd>↓</kbd> Lautstärke</span>
-        <span><kbd>M</kbd> Stumm</span>
-    </div>
-
-    <!-- Segment List -->
-    <div class="segment-list" id="segmentList">
-        {% if debate.intro_audio %}
-        <div class="segment-item" data-src="/audio/{{ debate.id }}/{{ debate.intro_audio }}"
-             data-name="Moderator" data-role="Einleitung" data-model=""
-             data-text="{{ debate.intro_text|e }}" data-side="mod"
-             onclick="playSegment(this)">
-            <span class="seg-icon">🎙</span>
-            <span class="seg-label">Moderator – Einleitung</span>
-            <span class="seg-playing">▶ spielt</span>
-        </div>
-        {% endif %}
-
-        {% for turn in debate.turns %}
-        {% if turn.audio_file %}
-        {% set is_a = turn.debater_name == debate.config.debater_a.name %}
-        <div class="segment-item {% if not is_a %}is-b{% endif %}"
-             data-src="/audio/{{ debate.id }}/{{ turn.audio_file }}"
-             data-name="{{ turn.debater_name }}"
-             data-role="Runde {{ turn.round_num }} · {{ turn.position }}"
-             data-model="{{ turn.model }}"
-             data-text="{{ turn.content|e }}"
-             data-side="{% if is_a %}a{% else %}b{% endif %}"
-             onclick="playSegment(this)">
-            <span class="seg-icon">{% if is_a %}⚡{% else %}🔥{% endif %}</span>
-            <span class="seg-label">{{ turn.debater_name }} – Runde {{ turn.round_num }}</span>
-            <span class="seg-round">{{ turn.model }}</span>
-            <span class="seg-playing">▶ spielt</span>
-        </div>
-        {% endif %}
-        {% endfor %}
-        {% if debate.summary_audio %}
-        <div class="segment-item" data-src="/audio/{{ debate.id }}/{{ debate.summary_audio }}"
-             data-name="Moderator" data-role="Zusammenfassung" data-model=""
-             data-text="{{ debate.summary_text|e }}" data-side="mod"
-             onclick="playSegment(this)">
-            <span class="seg-icon">🎙</span>
-            <span class="seg-label">Moderator – Zusammenfassung</span>
-            <span class="seg-playing">▶ spielt</span>
-        </div>
-        {% endif %}
-    </div>
+    {% for turn in debate.turns %}
+    {% if turn.audio_file %}
+    {% set is_a = turn.debater_name == debate.config.debater_a.name %}
+    <div class="seg" data-src="/audio/{{ debate.id }}/{{ turn.audio_file }}"
+         data-name="{{ turn.debater_name }}"
+         data-role="Runde {{ turn.round_num }} · {{ turn.position }}"
+         data-model="{{ turn.model }}"
+         data-text="{{ turn.content|e }}"
+         data-side="{% if is_a %}a{% else %}b{% endif %}"
+         data-round="{{ turn.round_num }}"></div>
+    {% endif %}
+    {% endfor %}
+    {% if debate.summary_audio %}
+    <div class="seg" data-src="/audio/{{ debate.id }}/{{ debate.summary_audio }}"
+         data-name="Moderator" data-role="Zusammenfassung" data-model=""
+         data-text="{{ debate.summary_text|e }}" data-side="mod" data-round="99"></div>
+    {% endif %}
 </div>
 
 <audio id="audioEl" preload="auto"></audio>
@@ -327,154 +655,290 @@
 {% block scripts %}
 <script>
 const audioEl = document.getElementById('audioEl');
-const segments = [...document.querySelectorAll('.segment-item')];
-const visualizer = document.getElementById('visualizer');
+const segments = [...document.querySelectorAll('#segmentData .seg')];
+const messagesEl = document.getElementById('messages');
 const playBtn = document.getElementById('playBtn');
+const modOverlay = document.getElementById('modOverlay');
 let currentIdx = -1;
 let isPlaying = false;
+let mouthInterval = null;
+let typingInterval = null;
 
-function updateVisualizer(el) {
-    const name = el.dataset.name;
-    const role = el.dataset.role;
-    const model = el.dataset.model;
-    const text = el.dataset.text;
-    const side = el.dataset.side;
-
-    document.getElementById('speakerName').textContent = name;
-    document.getElementById('speakerRole').textContent = role;
-    document.getElementById('speakerModel').textContent = model;
-    document.getElementById('currentText').textContent = text;
-
-    visualizer.classList.toggle('is-b', side === 'b');
+// === CLEAN MARKDOWN for display ===
+function cleanMarkdown(text) {
+    return text
+        .replace(/\*{1,3}/g, '')
+        .replace(/_{1,3}/g, '')
+        .replace(/^#{1,6}\s+/gm, '')
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        .replace(/[`~]/g, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
 }
 
-function setActive(idx) {
-    segments.forEach(s => s.classList.remove('active'));
-    if (idx >= 0 && idx < segments.length) {
-        segments[idx].classList.add('active');
-        segments[idx].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-    // Update segment counter
-    const counter = document.getElementById('segmentCounter');
-    if (idx >= 0) {
-        counter.textContent = `${idx + 1} / ${segments.length}`;
+// === AVATAR ANIMATION ===
+function setMouthOpen(who, open) {
+    const mouth = document.getElementById(`mouth${who}`);
+    if (!mouth) return;
+    if (open) {
+        const o = 90 + Math.random() * 8;
+        mouth.setAttribute('d', `M 52 85 Q 70 ${o + 10} 88 85 Q 70 ${o + 2} 52 85`);
     } else {
-        counter.textContent = '– / –';
+        mouth.setAttribute('d', 'M 52 88 Q 70 95 88 88');
     }
 }
 
-function playSegment(el) {
-    const idx = segments.indexOf(el);
-    if (idx === -1) return;
-    currentIdx = idx;
-    setActive(idx);
-    updateVisualizer(el);
+function startSpeaking(who) {
+    const ring = document.getElementById(`ring${who}`);
+    const dot = document.getElementById(`dot${who}`);
+    const wave = document.getElementById(`wave${who}`);
+    const status = document.getElementById(`status${who}`);
 
-    audioEl.src = el.dataset.src;
+    ring?.classList.add('speaking');
+    dot?.classList.add('active');
+    wave?.classList.add('active');
+    if (status) status.textContent = 'Spricht...';
+
+    let open = false;
+    clearInterval(mouthInterval);
+    mouthInterval = setInterval(() => {
+        open = !open;
+        setMouthOpen(who, open);
+    }, 150 + Math.random() * 100);
+}
+
+function stopSpeaking(who) {
+    const ring = document.getElementById(`ring${who}`);
+    const dot = document.getElementById(`dot${who}`);
+    const wave = document.getElementById(`wave${who}`);
+    const status = document.getElementById(`status${who}`);
+
+    ring?.classList.remove('speaking');
+    dot?.classList.remove('active');
+    wave?.classList.remove('active');
+    if (status) status.textContent = 'Bereit';
+
+    clearInterval(mouthInterval);
+    mouthInterval = null;
+    setMouthOpen(who, false);
+}
+
+function stopAllSpeaking() {
+    stopSpeaking('A');
+    stopSpeaking('B');
+    stopModSpeaking();
+}
+
+// === MODERATOR ANIMATION ===
+function startModSpeaking(role) {
+    modOverlay.classList.add('visible');
+    document.getElementById('modRole').textContent = role;
+    document.getElementById('modRing').classList.add('speaking');
+    document.getElementById('modWave').classList.add('active');
+
+    // Mouth animation for moderator
+    let open = false;
+    clearInterval(mouthInterval);
+    mouthInterval = setInterval(() => {
+        open = !open;
+        setMouthOpen('Mod', open);
+    }, 150 + Math.random() * 100);
+}
+
+function stopModSpeaking() {
+    modOverlay.classList.remove('visible');
+    document.getElementById('modRing').classList.remove('speaking');
+    document.getElementById('modWave').classList.remove('active');
+    clearInterval(mouthInterval);
+    mouthInterval = null;
+    setMouthOpen('Mod', false);
+}
+
+// === TYPING TEXT ===
+function typeTextInto(element, text, onDone) {
+    clearInterval(typingInterval);
+    const words = text.split(' ');
+    let i = 0;
+    element.innerHTML = '<span class="typing-cursor"></span>';
+
+    typingInterval = setInterval(() => {
+        if (i < words.length) {
+            element.innerHTML = words.slice(0, i + 1).join(' ') + '<span class="typing-cursor"></span>';
+            // Auto-scroll the element if it has overflow
+            element.scrollTop = element.scrollHeight;
+            i++;
+        } else {
+            clearInterval(typingInterval);
+            element.textContent = text;
+            if (onDone) onDone();
+        }
+    }, 80);
+}
+
+function addMessage(side, name, text) {
+    clearInterval(typingInterval);
+
+    const msg = document.createElement('div');
+    const sideClass = side === 'a' ? 'msg-a' : side === 'b' ? 'msg-b' : 'msg-mod';
+    msg.className = `message ${sideClass}`;
+
+    const sender = document.createElement('div');
+    sender.className = 'msg-sender';
+    sender.textContent = name;
+
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+
+    msg.appendChild(sender);
+    msg.appendChild(bubble);
+    messagesEl.appendChild(msg);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+
+    // Type text into bubble
+    typeTextInto(bubble, text, () => {
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    });
+
+    // Also keep the messages container scrolled
+    const scrollKeeper = setInterval(() => {
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }, 300);
+    setTimeout(() => clearInterval(scrollKeeper), text.split(' ').length * 85 + 1000);
+}
+
+// === SEGMENT PLAYBACK ===
+function playSegment(idx) {
+    if (idx < 0 || idx >= segments.length) return;
+
+    stopAllSpeaking();
+    clearInterval(typingInterval);
+
+    currentIdx = idx;
+    const seg = segments[idx];
+    const side = seg.dataset.side;
+    const name = seg.dataset.name;
+    const rawText = seg.dataset.text;
+    const text = cleanMarkdown(rawText);
+    const round = seg.dataset.round;
+
+    // Update round badge
+    const badge = document.getElementById('roundBadge');
+    if (side === 'mod') {
+        badge.textContent = round === '0' ? 'EINLEITUNG' : 'ZUSAMMENFASSUNG';
+    } else {
+        badge.textContent = `RUNDE ${round}`;
+    }
+
+    // Update counter
+    document.getElementById('turnCounter').textContent = `${idx + 1} / ${segments.length}`;
+
+    // Start animation based on speaker
+    if (side === 'mod') {
+        const role = round === '0' ? 'Einleitung' : 'Zusammenfassung';
+        startModSpeaking(role);
+        // Type into the moderator overlay text display
+        const modText = document.getElementById('modTextDisplay');
+        typeTextInto(modText, text);
+    } else {
+        if (side === 'a') startSpeaking('A');
+        else startSpeaking('B');
+        addMessage(side, name, text);
+    }
+
+    // Play audio
+    audioEl.src = seg.dataset.src;
     audioEl.play();
     isPlaying = true;
-    visualizer.classList.add('playing');
-    playBtn.textContent = '⏸';
+    playBtn.textContent = '⏸ Pause';
 }
 
 function togglePlay() {
     if (isPlaying) {
         audioEl.pause();
         isPlaying = false;
-        visualizer.classList.remove('playing');
-        playBtn.textContent = '▶';
+        stopAllSpeaking();
+        clearInterval(typingInterval);
+        playBtn.textContent = '▶ Play';
     } else if (currentIdx >= 0) {
+        const side = segments[currentIdx].dataset.side;
         audioEl.play();
         isPlaying = true;
-        visualizer.classList.add('playing');
-        playBtn.textContent = '⏸';
+        if (side === 'a') startSpeaking('A');
+        else if (side === 'b') startSpeaking('B');
+        else if (side === 'mod') {
+            const round = segments[currentIdx].dataset.round;
+            startModSpeaking(round === '0' ? 'Einleitung' : 'Zusammenfassung');
+        }
+        playBtn.textContent = '⏸ Pause';
     } else if (segments.length > 0) {
-        playSegment(segments[0]);
+        playSegment(0);
     }
 }
 
 function nextSegment() {
-    if (currentIdx < segments.length - 1) {
-        playSegment(segments[currentIdx + 1]);
-    }
+    if (currentIdx < segments.length - 1) playSegment(currentIdx + 1);
 }
 
 function prevSegment() {
-    if (currentIdx > 0) {
-        playSegment(segments[currentIdx - 1]);
-    }
+    if (currentIdx > 0) playSegment(currentIdx - 1);
 }
 
-// Auto-advance
+// Auto-advance when audio ends
 audioEl.addEventListener('ended', () => {
+    stopAllSpeaking();
     if (currentIdx < segments.length - 1) {
-        playSegment(segments[currentIdx + 1]);
+        setTimeout(() => playSegment(currentIdx + 1), 600);
     } else {
         isPlaying = false;
-        visualizer.classList.remove('playing');
-        playBtn.textContent = '▶';
+        playBtn.textContent = '↻ Nochmal';
+        document.getElementById('roundBadge').textContent = 'FERTIG';
     }
 });
 
-// Audio load error: show message and auto-skip after 2s
+// Audio error: skip
 audioEl.addEventListener('error', () => {
-    const counter = document.getElementById('segmentCounter');
-    counter.textContent = `${currentIdx + 1} / ${segments.length} – Audio nicht verfügbar, wird übersprungen…`;
-    segments[currentIdx]?.classList.add('seg-error');
-
+    stopAllSpeaking();
     setTimeout(() => {
-        if (currentIdx < segments.length - 1) {
-            playSegment(segments[currentIdx + 1]);
-        } else {
+        if (currentIdx < segments.length - 1) playSegment(currentIdx + 1);
+        else {
             isPlaying = false;
-            visualizer.classList.remove('playing');
-            playBtn.textContent = '▶';
+            playBtn.textContent = '▶ Play';
         }
-    }, 2000);
+    }, 1500);
 });
 
 audioEl.addEventListener('pause', () => {
     if (!audioEl.ended) {
-        visualizer.classList.remove('playing');
-        playBtn.textContent = '▶';
+        stopAllSpeaking();
+        playBtn.textContent = '▶ Play';
     }
 });
 
-// ── Keyboard shortcuts ──────────────────────────────────
+// Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
-    // Ignore if user is typing in an input
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-
     switch (e.key) {
-        case ' ':           // Space → Play/Pause
+        case ' ':
             e.preventDefault();
             togglePlay();
             break;
-        case 'ArrowRight':  // → → Nächstes Segment
+        case 'ArrowRight':
             e.preventDefault();
             nextSegment();
             break;
-        case 'ArrowLeft':   // ← → Vorheriges Segment
+        case 'ArrowLeft':
             e.preventDefault();
             prevSegment();
             break;
-        case 'ArrowUp':     // ↑ → Lauter
+        case 'ArrowUp':
             e.preventDefault();
             audioEl.volume = Math.min(1, audioEl.volume + 0.1);
             break;
-        case 'ArrowDown':   // ↓ → Leiser
+        case 'ArrowDown':
             e.preventDefault();
             audioEl.volume = Math.max(0, audioEl.volume - 0.1);
             break;
-        case 'Home':        // Home → Zum Anfang
-            e.preventDefault();
-            if (segments.length) playSegment(segments[0]);
-            break;
-        case 'End':         // End → Zum Ende
-            e.preventDefault();
-            if (segments.length) playSegment(segments[segments.length - 1]);
-            break;
-        case 'm':           // M → Mute toggle
+        case 'm':
             audioEl.muted = !audioEl.muted;
             break;
     }

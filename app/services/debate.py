@@ -300,6 +300,29 @@ def _build_messages(debate: Debate, current_debater: Debater, round_num: int, co
     return messages
 
 
+# Preferred moderator voices per language (neutral-sounding, distinct from typical debater choices)
+_MODERATOR_VOICES = {
+    "de": ["de-DE-KillianNeural", "de-AT-JonasNeural", "de-DE-KatjaNeural", "de-AT-IngridNeural"],
+    "en": ["en-GB-RyanNeural", "en-US-DavisNeural", "en-GB-SoniaNeural", "en-US-AriaNeural"],
+}
+
+
+def _pick_moderator_voice(config: DebateConfig) -> str:
+    """Pick a moderator voice that differs from both debaters' voices."""
+    used = {config.debater_a.voice, config.debater_b.voice}
+    candidates = _MODERATOR_VOICES.get(config.language, _MODERATOR_VOICES["de"])
+    for voice in candidates:
+        if voice not in used:
+            return voice
+    # Fallback: pick any curated voice for the language that's not used
+    from app.services.tts import get_curated_voices
+    for voice_id in get_curated_voices(config.language):
+        if voice_id not in used:
+            return voice_id
+    # Last resort: just use debater A's voice
+    return config.debater_a.voice
+
+
 async def run_debate(
     config: DebateConfig,
     on_update: Callable[[Debate, str], Awaitable[None]] | None = None,
@@ -396,10 +419,12 @@ async def run_debate(
         debate.status = DebateStatus.GENERATING_AUDIO
         await notify("generating_audio")
 
+        # Pick a moderator voice that differs from both debaters
+        moderator_voice = _pick_moderator_voice(config)
+
         # Intro audio
         if debate.intro_text:
             try:
-                moderator_voice = config.debater_a.voice
                 await tts.synthesize(
                     debate.intro_text,
                     moderator_voice,
@@ -432,7 +457,7 @@ async def run_debate(
             try:
                 await tts.synthesize(
                     debate.summary_text,
-                    config.debater_a.voice,
+                    moderator_voice,
                     debate.output_dir / "summary.mp3",
                 )
                 debate.summary_audio = "summary.mp3"

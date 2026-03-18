@@ -9,6 +9,7 @@ Für die vollständige Liste: await list_all_voices()
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from dataclasses import dataclass, field
 
@@ -43,10 +44,27 @@ class TTSResult:
     duration_estimate: float = 0.0  # rough estimate in seconds
 
 
+def _clean_for_tts(text: str) -> str:
+    """Remove markdown formatting and other artifacts that TTS would read aloud."""
+    # Remove bold/italic markers: **text**, *text*, __text__, _text_
+    text = re.sub(r'\*{1,3}', '', text)
+    text = re.sub(r'_{1,3}', '', text)
+    # Remove markdown headers: ## Header
+    text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+    # Remove markdown links: [text](url) → text
+    text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+    # Remove leftover special chars that sound odd when spoken
+    text = re.sub(r'[`~]', '', text)
+    # Collapse multiple whitespace
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
+
+
 async def synthesize(text: str, voice: str, output_path: Path) -> TTSResult:
     """Generate an MP3 file from text using edge-tts."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    text = _clean_for_tts(text)
     communicate = edge_tts.Communicate(text, voice)
     await communicate.save(str(output_path))
 
