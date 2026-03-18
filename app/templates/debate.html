@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% block title %}KI Arena – {{ debate.config.topic[:40] }}{% endblock %}
+
+{% block content %}
+<a href="/" class="back-link">← Alle Debatten</a>
+
+<div class="debate-header">
+    <h1 class="debate-title">{{ debate.config.topic }}</h1>
+    <div class="debate-info">
+        <span class="badge badge-pos">{{ debate.config.debater_a.name }} ({{ debate.config.debater_a.position }})</span>
+        <span class="vs-small">vs</span>
+        <span class="badge badge-neg">{{ debate.config.debater_b.name }} ({{ debate.config.debater_b.position }})</span>
+        <span class="badge badge-neutral">{{ debate.config.num_rounds }} Runden</span>
+    </div>
+    {% if debate.status.value == 'completed' %}
+    <div class="debate-actions">
+        <a href="/player/{{ debate.id }}" class="btn-player">▶ Audio-Player öffnen</a>
+        <a href="/?clone={{ debate.id }}" class="btn-clone" title="Neue Debatte mit gleichen Einstellungen">↻ Nochmal</a>
+        <button class="btn-delete"
+            hx-delete="/api/debate/{{ debate.id }}"
+            hx-confirm="Debatte wirklich löschen? Alle Audio-Dateien werden gelöscht."
+            hx-target="body"
+            title="Debatte löschen">✕ Löschen</button>
+    </div>
+    {% elif debate.status.value == 'error' %}
+    <div class="debate-actions">
+        <a href="/?clone={{ debate.id }}" class="btn-clone" title="Erneut versuchen mit gleichen Einstellungen">↻ Erneut versuchen</a>
+        <button class="btn-delete"
+            hx-delete="/api/debate/{{ debate.id }}"
+            hx-confirm="Fehlerhafte Debatte löschen?"
+            hx-target="body"
+            title="Debatte löschen">✕ Löschen</button>
+    </div>
+    {% endif %}
+</div>
+
+<div class="debate-status-bar">
+    <div class="status-indicator status-{{ debate.status.value }}">
+        <span class="status-dot"></span>
+        <span id="status-text">{{ debate.status.value | upper }}</span>
+    </div>
+    <div id="progress-text" class="progress-text"></div>
+</div>
+
+<!-- Intro -->
+{% if debate.intro_text %}
+<div class="turn-card turn-moderator">
+    <div class="turn-header">
+        <span class="turn-label">🎙 Moderator – Einleitung</span>
+    </div>
+    <div class="turn-content">{{ debate.intro_text }}</div>
+    {% if debate.intro_audio %}
+    <audio controls class="turn-audio" preload="none">
+        <source src="/audio/{{ debate.id }}/{{ debate.intro_audio }}" type="audio/mpeg">
+    </audio>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Turns -->
+<div id="turns-container">
+    {% for turn in debate.turns %}
+    {% set is_a = turn.debater_name == debate.config.debater_a.name %}
+    {% set is_error = turn.content.startswith('[Fehler') or turn.content.startswith('[Generation error') %}
+    <div class="turn-card {% if is_error %}turn-error{% elif is_a %}turn-a{% else %}turn-b{% endif %}">
+        <div class="turn-header">
+            <span class="turn-label">
+                {% if is_error %}⚠{% elif is_a %}⚡{% else %}🔥{% endif %}
+                {{ turn.debater_name }} – Runde {{ turn.round_num }}
+            </span>
+            <span class="turn-model">{{ turn.model }}</span>
+        </div>
+        <div class="turn-content">{{ turn.content }}</div>
+        {% if turn.audio_file %}
+        <audio controls class="turn-audio" preload="none">
+            <source src="/audio/{{ debate.id }}/{{ turn.audio_file }}" type="audio/mpeg">
+        </audio>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Summary -->
+{% if debate.summary_text %}
+<div class="turn-card turn-moderator">
+    <div class="turn-header">
+        <span class="turn-label">🎙 Moderator – Zusammenfassung</span>
+    </div>
+    <div class="turn-content">{{ debate.summary_text }}</div>
+    {% if debate.summary_audio %}
+    <audio controls class="turn-audio" preload="none">
+        <source src="/audio/{{ debate.id }}/{{ debate.summary_audio }}" type="audio/mpeg">
+    </audio>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Loading spinner for running debates -->
+{% if debate.status.value in ['pending', 'running', 'generating_audio'] %}
+<div id="loading-indicator" class="loading-section">
+    <div class="spinner"></div>
+    <p id="loading-text">Debatte läuft…</p>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+{% if debate.status.value in ['pending', 'running', 'generating_audio'] %}
+<script>
+(function() {
+    const debateId = "{{ debate.id }}";
+    const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    let ws;
+    let reconnectAttempts = 0;
+    const maxReconnect = 5;
+
+    const statusText = document.getElementById('status-text');
+    const progressText = document.getElementById('progress-text');
+    const loadingText = document.getElementById('loading-text');
+
+    const eventMessages = {
+        'debate_started': 'Debatte gestartet…',
+        'generating_intro': 'Moderator formuliert Einleitung…',
+        'intro_generated': 'Einleitung fertig!',
+        'generating_summary': 'Moderator fasst zusammen…',
+        'summary_generated': 'Zusammenfassung fertig!',
+        'generating_audio': 'Audio wird generiert…',
+        'intro_audio_done': 'Intro-Audio fertig',
+        'intro_audio_skipped': 'Intro-Audio übersprungen (TTS-Fehler)',
+        'summary_audio_done': 'Zusammenfassungs-Audio fertig',
+        'summary_audio_skipped': 'Summary-Audio übersprungen (TTS-Fehler)',
+        'completed': 'Debatte abgeschlossen!',
+    };
+
+    function connect() {
+        ws = new WebSocket(`${wsProtocol}//${location.host}/ws/debate/${debateId}`);
+
+        ws.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            const event = data.event;
+            const debate = data.debate;
+            reconnectAttempts = 0;
+
+            // Update status indicator
+            statusText.textContent = debate.status.toUpperCase();
+
+            // Build progress message
+            let msg = eventMessages[event] || '';
+
+            if (!msg) {
+                // Parse round events: round_{num}_{name}_thinking/done/error
+                const roundMatch = event.match(/^round_(\d+)_(.+?)_(thinking|done|error)$/);
+                if (roundMatch) {
+                    const [, roundNum, name, action] = roundMatch;
+                    if (action === 'thinking') msg = `Runde ${roundNum} – ${name} denkt nach…`;
+                    else if (action === 'done') msg = `Runde ${roundNum} – ${name} hat geantwortet!`;
+                    else if (action === 'error') msg = `Runde ${roundNum} – ${name}: Fehler bei Generierung`;
+                }
+
+                // Audio turn events
+                const audioMatch = event.match(/^audio_turn_(\d+)_(done|skipped)$/);
+                if (audioMatch) {
+                    const [, idx, status] = audioMatch;
+                    if (status === 'done') msg = `Audio für Beitrag ${parseInt(idx) + 1} generiert`;
+                    else msg = `Audio für Beitrag ${parseInt(idx) + 1} übersprungen`;
+                }
+
+                // Error events from debate engine
+                if (event.startsWith('error:')) {
+                    msg = 'Fehler: ' + event.substring(7);
+                }
+            }
+
+            if (msg) {
+                progressText.textContent = msg;
+                if (loadingText) loadingText.textContent = msg;
+            }
+
+            // Reload on completion/error to show final state
+            if (debate.status === 'completed' || debate.status === 'error') {
+                setTimeout(() => location.reload(), 800);
+            }
+        };
+
+        ws.onclose = function() {
+            if (reconnectAttempts < maxReconnect) {
+                reconnectAttempts++;
+                const delay = Math.min(1000 * reconnectAttempts, 5000);
+                setTimeout(connect, delay);
+            } else {
+                progressText.textContent = 'Verbindung verloren – Seite neu laden';
+            }
+        };
+
+        ws.onerror = function() {
+            // onclose will handle reconnection
+        };
+    }
+
+    connect();
+
+    // Keep alive
+    setInterval(() => {
+        if (ws && ws.readyState === WebSocket.OPEN) ws.send('ping');
+    }, 15000);
+})();
+</script>
+{% endif %}
+{% endblock %}

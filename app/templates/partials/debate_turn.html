@@ -1,0 +1,16 @@
+{% set is_a = turn.debater_name == debate.config.debater_a.name %}
+<div class="turn-card {% if is_a %}turn-a{% else %}turn-b{% endif %} fade-in">
+    <div class="turn-header">
+        <span class="turn-label">
+            {% if is_a %}⚡{% else %}🔥{% endif %}
+            {{ turn.debater_name }} – Runde {{ turn.round_num }}
+        </span>
+        <span class="turn-model">{{ turn.model }}</span>
+    </div>
+    <div class="turn-content">{{ turn.content }}</div>
+    {% if turn.audio_file %}
+    <audio controls class="turn-audio" preload="none">
+        <source src="/audio/{{ debate.id }}/{{ turn.audio_file }}" type="audio/mpeg">
+    </audio>
+    {% endif %}
+</div>

@@ -1,0 +1,483 @@
+{% extends "base.html" %}
+{% block title %}KI Arena Player – {{ debate.config.topic[:40] }}{% endblock %}
+
+{% block head %}
+<style>
+    .player-wrap {
+        max-width: 900px;
+        margin: 0 auto;
+    }
+    .player-topic {
+        font-family: 'Outfit', sans-serif;
+        font-weight: 800;
+        font-size: clamp(1.4rem, 3vw, 2rem);
+        text-align: center;
+        margin-bottom: 0.5rem;
+        color: var(--text-primary);
+    }
+    .player-meta {
+        text-align: center;
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        margin-bottom: 2rem;
+    }
+    /* Visualizer */
+    .visualizer-area {
+        position: relative;
+        background: var(--surface-2);
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        padding: 2rem;
+        margin-bottom: 1.5rem;
+        min-height: 220px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+    }
+    .visualizer-bg {
+        position: absolute;
+        inset: 0;
+        opacity: 0.08;
+        background: radial-gradient(circle at 30% 40%, var(--accent-a) 0%, transparent 50%),
+                    radial-gradient(circle at 70% 60%, var(--accent-b) 0%, transparent 50%);
+        transition: opacity 0.6s;
+    }
+    .visualizer-area.playing .visualizer-bg { opacity: 0.18; }
+
+    .speaker-name {
+        font-family: 'Outfit', sans-serif;
+        font-weight: 800;
+        font-size: 1.6rem;
+        color: var(--text-primary);
+        z-index: 1;
+        transition: all 0.4s ease;
+    }
+    .speaker-role {
+        font-family: 'Space Mono', monospace;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.15em;
+        color: var(--text-muted);
+        margin-top: 0.3rem;
+        z-index: 1;
+    }
+    .speaker-model {
+        font-size: 0.75rem;
+        color: var(--text-dim);
+        margin-top: 0.25rem;
+        z-index: 1;
+    }
+
+    /* Waveform bars */
+    .wave-bars {
+        display: flex;
+        gap: 3px;
+        align-items: center;
+        height: 50px;
+        margin-top: 1.2rem;
+        z-index: 1;
+    }
+    .wave-bar {
+        width: 4px;
+        background: var(--accent-a);
+        border-radius: 2px;
+        height: 10px;
+        transition: height 0.15s ease;
+    }
+    .visualizer-area.playing .wave-bar {
+        animation: waveAnim 0.6s ease-in-out infinite alternate;
+    }
+    .wave-bar:nth-child(odd) { animation-delay: 0.1s; }
+    .wave-bar:nth-child(3n) { animation-delay: 0.2s; }
+    .wave-bar:nth-child(5n) { animation-delay: 0.05s; }
+    @keyframes waveAnim {
+        0% { height: 6px; }
+        100% { height: 45px; }
+    }
+    .visualizer-area.is-b .wave-bar { background: var(--accent-b); }
+
+    /* Current text */
+    .current-text {
+        margin-top: 1rem;
+        padding: 1rem;
+        font-size: 0.95rem;
+        line-height: 1.7;
+        color: var(--text-secondary);
+        max-height: 160px;
+        overflow-y: auto;
+        z-index: 1;
+        text-align: center;
+        width: 100%;
+    }
+
+    /* Transport controls */
+    .transport {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    .transport-btn {
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: 50%;
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 1.2rem;
+        color: var(--text-primary);
+        transition: all 0.2s;
+    }
+    .transport-btn:hover { border-color: var(--accent-a); background: var(--surface-3); }
+    .transport-btn.play-btn {
+        width: 64px;
+        height: 64px;
+        font-size: 1.5rem;
+        background: var(--accent-a);
+        border-color: var(--accent-a);
+        color: #fff;
+    }
+    .transport-btn.play-btn:hover { opacity: 0.9; transform: scale(1.05); }
+
+    /* Segment list */
+    .segment-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+    }
+    .segment-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.7rem 1rem;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--surface-1);
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 0.88rem;
+    }
+    .segment-item:hover { background: var(--surface-2); border-color: var(--accent-a); }
+    .segment-item.active {
+        border-color: var(--accent-a);
+        background: var(--surface-3);
+        box-shadow: 0 0 0 1px var(--accent-a);
+    }
+    .segment-item.is-b.active { border-color: var(--accent-b); box-shadow: 0 0 0 1px var(--accent-b); }
+    .seg-icon { font-size: 1.1rem; flex-shrink: 0; }
+    .seg-label { flex: 1; color: var(--text-primary); font-weight: 500; }
+    .seg-round { color: var(--text-muted); font-family: 'Space Mono', monospace; font-size: 0.75rem; }
+    .seg-playing { display: none; color: var(--accent-a); font-size: 0.75rem; }
+    .segment-item.active .seg-playing { display: inline; }
+
+    /* Error segment */
+    .seg-error { opacity: 0.5; border-color: var(--accent-b) !important; }
+    .seg-error .seg-label::after {
+        content: ' (kein Audio)';
+        font-size: 0.7rem;
+        color: var(--text-dim);
+    }
+
+    /* Mobile */
+    @media (max-width: 600px) {
+        .keyboard-hint { display: none; }
+        .transport-btn { width: 42px; height: 42px; font-size: 1rem; }
+        .transport-btn.play-btn { width: 56px; height: 56px; font-size: 1.3rem; }
+        .player-wrap { padding: 0 0.25rem; }
+        .visualizer-area { padding: 1.25rem; min-height: 180px; }
+        .current-text { font-size: 0.85rem; max-height: 100px; }
+    }
+
+    /* Keyboard shortcut hint */
+    .keyboard-hint {
+        display: flex;
+        justify-content: center;
+        gap: 1.2rem;
+        flex-wrap: wrap;
+        margin-bottom: 1.5rem;
+        font-size: 0.72rem;
+        color: var(--text-dim);
+    }
+    /* Segment counter */
+    .segment-counter {
+        text-align: center;
+        font-family: 'Space Mono', monospace;
+        font-size: 0.78rem;
+        color: var(--text-dim);
+        margin-bottom: 0.5rem;
+    }
+    .keyboard-hint span { display: flex; align-items: center; gap: 0.3rem; }
+    .keyboard-hint kbd {
+        display: inline-block;
+        padding: 1px 6px;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        font-family: 'Space Mono', monospace;
+        font-size: 0.68rem;
+        color: var(--text-muted);
+        line-height: 1.6;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="player-wrap">
+    <a href="/debate/{{ debate.id }}" class="back-link">← Zur Debatte</a>
+
+    <p class="player-topic">{{ debate.config.topic }}</p>
+    <p class="player-meta">
+        {{ debate.config.debater_a.name }} vs {{ debate.config.debater_b.name }}
+        · {{ debate.config.num_rounds }} Runden
+    </p>
+
+    {% if debate.status.value != 'completed' %}
+    <div class="notice notice-info" style="text-align:center; margin-bottom:2rem;">
+        {% if debate.status.value == 'error' %}
+            Die Debatte wurde mit einem Fehler beendet. Einige Audio-Segmente könnten fehlen.<br>
+            <small>{{ debate.error }}</small>
+        {% else %}
+            Die Debatte läuft noch. Audio-Segmente werden nach Abschluss hier verfügbar.<br>
+            <a href="/debate/{{ debate.id }}" style="color: var(--accent-a);">← Zur Live-Ansicht</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Visualizer -->
+    <div class="visualizer-area" id="visualizer">
+        <div class="visualizer-bg"></div>
+        <div class="speaker-name" id="speakerName">Bereit</div>
+        <div class="speaker-role" id="speakerRole">Drücke Play zum Starten</div>
+        <div class="speaker-model" id="speakerModel"></div>
+        <div class="wave-bars" id="waveBars">
+            {% for i in range(24) %}
+            <div class="wave-bar" style="animation-delay: {{ (i * 0.04)|round(2) }}s"></div>
+            {% endfor %}
+        </div>
+        <div class="current-text" id="currentText"></div>
+    </div>
+
+    <!-- Transport -->
+    <div class="transport">
+        <button class="transport-btn" onclick="prevSegment()" title="Zurück (←)">⏮</button>
+        <button class="transport-btn play-btn" id="playBtn" onclick="togglePlay()" title="Play/Pause (Leertaste)">▶</button>
+        <button class="transport-btn" onclick="nextSegment()" title="Weiter (→)">⏭</button>
+    </div>
+    <div id="segmentCounter" class="segment-counter">– / –</div>
+    <div class="keyboard-hint">
+        <span><kbd>Space</kbd> Play/Pause</span>
+        <span><kbd>←</kbd><kbd>→</kbd> Segment</span>
+        <span><kbd>↑</kbd><kbd>↓</kbd> Lautstärke</span>
+        <span><kbd>M</kbd> Stumm</span>
+    </div>
+
+    <!-- Segment List -->
+    <div class="segment-list" id="segmentList">
+        {% if debate.intro_audio %}
+        <div class="segment-item" data-src="/audio/{{ debate.id }}/{{ debate.intro_audio }}"
+             data-name="Moderator" data-role="Einleitung" data-model=""
+             data-text="{{ debate.intro_text|e }}" data-side="mod"
+             onclick="playSegment(this)">
+            <span class="seg-icon">🎙</span>
+            <span class="seg-label">Moderator – Einleitung</span>
+            <span class="seg-playing">▶ spielt</span>
+        </div>
+        {% endif %}
+
+        {% for turn in debate.turns %}
+        {% if turn.audio_file %}
+        {% set is_a = turn.debater_name == debate.config.debater_a.name %}
+        <div class="segment-item {% if not is_a %}is-b{% endif %}"
+             data-src="/audio/{{ debate.id }}/{{ turn.audio_file }}"
+             data-name="{{ turn.debater_name }}"
+             data-role="Runde {{ turn.round_num }} · {{ turn.position }}"
+             data-model="{{ turn.model }}"
+             data-text="{{ turn.content|e }}"
+             data-side="{% if is_a %}a{% else %}b{% endif %}"
+             onclick="playSegment(this)">
+            <span class="seg-icon">{% if is_a %}⚡{% else %}🔥{% endif %}</span>
+            <span class="seg-label">{{ turn.debater_name }} – Runde {{ turn.round_num }}</span>
+            <span class="seg-round">{{ turn.model }}</span>
+            <span class="seg-playing">▶ spielt</span>
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% if debate.summary_audio %}
+        <div class="segment-item" data-src="/audio/{{ debate.id }}/{{ debate.summary_audio }}"
+             data-name="Moderator" data-role="Zusammenfassung" data-model=""
+             data-text="{{ debate.summary_text|e }}" data-side="mod"
+             onclick="playSegment(this)">
+            <span class="seg-icon">🎙</span>
+            <span class="seg-label">Moderator – Zusammenfassung</span>
+            <span class="seg-playing">▶ spielt</span>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<audio id="audioEl" preload="auto"></audio>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const audioEl = document.getElementById('audioEl');
+const segments = [...document.querySelectorAll('.segment-item')];
+const visualizer = document.getElementById('visualizer');
+const playBtn = document.getElementById('playBtn');
+let currentIdx = -1;
+let isPlaying = false;
+
+function updateVisualizer(el) {
+    const name = el.dataset.name;
+    const role = el.dataset.role;
+    const model = el.dataset.model;
+    const text = el.dataset.text;
+    const side = el.dataset.side;
+
+    document.getElementById('speakerName').textContent = name;
+    document.getElementById('speakerRole').textContent = role;
+    document.getElementById('speakerModel').textContent = model;
+    document.getElementById('currentText').textContent = text;
+
+    visualizer.classList.toggle('is-b', side === 'b');
+}
+
+function setActive(idx) {
+    segments.forEach(s => s.classList.remove('active'));
+    if (idx >= 0 && idx < segments.length) {
+        segments[idx].classList.add('active');
+        segments[idx].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    // Update segment counter
+    const counter = document.getElementById('segmentCounter');
+    if (idx >= 0) {
+        counter.textContent = `${idx + 1} / ${segments.length}`;
+    } else {
+        counter.textContent = '– / –';
+    }
+}
+
+function playSegment(el) {
+    const idx = segments.indexOf(el);
+    if (idx === -1) return;
+    currentIdx = idx;
+    setActive(idx);
+    updateVisualizer(el);
+
+    audioEl.src = el.dataset.src;
+    audioEl.play();
+    isPlaying = true;
+    visualizer.classList.add('playing');
+    playBtn.textContent = '⏸';
+}
+
+function togglePlay() {
+    if (isPlaying) {
+        audioEl.pause();
+        isPlaying = false;
+        visualizer.classList.remove('playing');
+        playBtn.textContent = '▶';
+    } else if (currentIdx >= 0) {
+        audioEl.play();
+        isPlaying = true;
+        visualizer.classList.add('playing');
+        playBtn.textContent = '⏸';
+    } else if (segments.length > 0) {
+        playSegment(segments[0]);
+    }
+}
+
+function nextSegment() {
+    if (currentIdx < segments.length - 1) {
+        playSegment(segments[currentIdx + 1]);
+    }
+}
+
+function prevSegment() {
+    if (currentIdx > 0) {
+        playSegment(segments[currentIdx - 1]);
+    }
+}
+
+// Auto-advance
+audioEl.addEventListener('ended', () => {
+    if (currentIdx < segments.length - 1) {
+        playSegment(segments[currentIdx + 1]);
+    } else {
+        isPlaying = false;
+        visualizer.classList.remove('playing');
+        playBtn.textContent = '▶';
+    }
+});
+
+// Audio load error: show message and auto-skip after 2s
+audioEl.addEventListener('error', () => {
+    const counter = document.getElementById('segmentCounter');
+    counter.textContent = `${currentIdx + 1} / ${segments.length} – Audio nicht verfügbar, wird übersprungen…`;
+    segments[currentIdx]?.classList.add('seg-error');
+
+    setTimeout(() => {
+        if (currentIdx < segments.length - 1) {
+            playSegment(segments[currentIdx + 1]);
+        } else {
+            isPlaying = false;
+            visualizer.classList.remove('playing');
+            playBtn.textContent = '▶';
+        }
+    }, 2000);
+});
+
+audioEl.addEventListener('pause', () => {
+    if (!audioEl.ended) {
+        visualizer.classList.remove('playing');
+        playBtn.textContent = '▶';
+    }
+});
+
+// ── Keyboard shortcuts ──────────────────────────────────
+document.addEventListener('keydown', (e) => {
+    // Ignore if user is typing in an input
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+    switch (e.key) {
+        case ' ':           // Space → Play/Pause
+            e.preventDefault();
+            togglePlay();
+            break;
+        case 'ArrowRight':  // → → Nächstes Segment
+            e.preventDefault();
+            nextSegment();
+            break;
+        case 'ArrowLeft':   // ← → Vorheriges Segment
+            e.preventDefault();
+            prevSegment();
+            break;
+        case 'ArrowUp':     // ↑ → Lauter
+            e.preventDefault();
+            audioEl.volume = Math.min(1, audioEl.volume + 0.1);
+            break;
+        case 'ArrowDown':   // ↓ → Leiser
+            e.preventDefault();
+            audioEl.volume = Math.max(0, audioEl.volume - 0.1);
+            break;
+        case 'Home':        // Home → Zum Anfang
+            e.preventDefault();
+            if (segments.length) playSegment(segments[0]);
+            break;
+        case 'End':         // End → Zum Ende
+            e.preventDefault();
+            if (segments.length) playSegment(segments[segments.length - 1]);
+            break;
+        case 'm':           // M → Mute toggle
+            audioEl.muted = !audioEl.muted;
+            break;
+    }
+});
+</script>
+{% endblock %}
