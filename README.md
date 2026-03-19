@@ -8,6 +8,10 @@ Zwei KIs debattieren live – mit TTS-Audio und animiertem Player. Alles in eine
 |:---:|:---:|:---:|
 | ![Konfigurator](docs/screenshots/configurator.png) | ![Debatte](docs/screenshots/debate.png) | ![Player](docs/screenshots/player.png) |
 
+## Video-Tutorial (DE)
+
+[![Video-Tutorial](https://img.youtube.com/vi/Wl0gBK_iSIc/0.jpg)](https://www.youtube.com/watch?v= Wl0gBK_iSIc)
+
 ## Features
 
 - **Konfigurator** – Thema, Modelle, Stimmen, Runden, Positionen – alles im Browser
