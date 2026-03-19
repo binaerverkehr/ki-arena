@@ -398,4 +398,6 @@ uv sync --python 3.12
 - [ ] Ollama Model-Discovery mit Pull-Option im UI
 - [ ] Docker-Compose Setup
 
+---
 
+Gefällt dir KI Arena? [![Buy Me a Coffee](docs/assets/bmc-button.png)](https://buymeacoffee.com/binaerverkehr)
