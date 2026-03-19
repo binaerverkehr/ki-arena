@@ -10,7 +10,7 @@ Zwei KIs debattieren live – mit TTS-Audio und animiertem Player. Alles in eine
 
 ## Video-Tutorial (DE)
 
-[![Video-Tutorial](https://img.youtube.com/vi/Wl0gBK_iSIc/0.jpg)](https://www.youtube.com/watch?v= Wl0gBK_iSIc)
+[![IMAGE ALT TEXT](http://img.youtube.com/vi/Wl0gBK_iSIc/0.jpg)](http://www.youtube.com/watch?v=Wl0gBK_iSIc "Video-Tutorial")
 
 ## Features
 
