@@ -1,4 +1,4 @@
-"""API routes – debate management, models, voices."""
+"""API routes – debate management, models, voices, setup."""
 from __future__ import annotations
 
 import asyncio
@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
+from app.config import settings, save_env, reload_settings
 from app.services.llm import get_available_models
 from app.services.tts import get_curated_voices
 from app.services.debate import (
@@ -235,3 +236,92 @@ async def delete_debate(request: Request, debate_id: str):
 async def available_voices(lang: str | None = None):
     voices = get_curated_voices(lang)
     return JSONResponse(voices)
+
+
+# ---------------------------------------------------------------------------
+# Setup endpoints
+# ---------------------------------------------------------------------------
+
+@router.post("/setup/test")
+async def test_provider(request: Request):
+    """Testet die Verbindung zu einem einzelnen LLM-Provider."""
+    data = await request.json()
+    provider = data.get("provider", "")
+
+    if provider == "anthropic":
+        key = data.get("anthropic_api_key", "").strip()
+        if not key:
+            return JSONResponse({"ok": False, "error": "Kein API-Key angegeben"})
+        try:
+            import anthropic
+            client = anthropic.Anthropic(api_key=key)
+            client.models.list(limit=1)
+            return JSONResponse({"ok": True})
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": str(e)[:150]})
+
+    elif provider == "openai":
+        key = data.get("openai_api_key", "").strip()
+        if not key:
+            return JSONResponse({"ok": False, "error": "Kein API-Key angegeben"})
+        try:
+            import openai
+            client = openai.OpenAI(api_key=key)
+            client.models.list()
+            return JSONResponse({"ok": True})
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": str(e)[:150]})
+
+    elif provider == "ollama":
+        url = data.get("ollama_base_url", "http://localhost:11434").strip()
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=5) as client:
+                resp = await client.get(f"{url}/api/tags")
+                models = resp.json().get("models", [])
+                return JSONResponse({"ok": True, "models": len(models)})
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": f"Nicht erreichbar: {str(e)[:100]}"})
+
+    return JSONResponse({"ok": False, "error": "Unbekannter Provider"})
+
+
+@router.post("/setup")
+async def save_setup(request: Request):
+    """Speichert API-Keys in ~/.ki-arena/.env und lädt Settings neu."""
+    data = await request.json()
+
+    keys_to_save = {}
+    if data.get("anthropic_api_key"):
+        keys_to_save["ANTHROPIC_API_KEY"] = data["anthropic_api_key"].strip()
+    if data.get("openai_api_key"):
+        keys_to_save["OPENAI_API_KEY"] = data["openai_api_key"].strip()
+    if data.get("ollama_base_url"):
+        keys_to_save["OLLAMA_BASE_URL"] = data["ollama_base_url"].strip()
+
+    if not keys_to_save:
+        return JSONResponse({"ok": False, "error": "Keine Konfiguration angegeben."})
+
+    try:
+        save_env(keys_to_save)
+        new_settings = reload_settings()
+
+        # Prüfen ob jetzt mindestens ein Provider verfügbar ist
+        has_llm = bool(new_settings.anthropic_api_key or new_settings.openai_api_key)
+        if not has_llm:
+            # Ollama-Check
+            try:
+                import httpx
+                async with httpx.AsyncClient(timeout=3) as client:
+                    resp = await client.get(f"{new_settings.ollama_base_url}/api/tags")
+                    if resp.json().get("models"):
+                        has_llm = True
+            except Exception:
+                pass
+
+        if has_llm:
+            request.app.state.needs_setup = False
+
+        return JSONResponse({"ok": True})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"Fehler beim Speichern: {str(e)[:200]}"})

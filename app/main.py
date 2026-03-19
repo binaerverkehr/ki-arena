@@ -9,18 +9,18 @@ Startet den FastAPI-Server mit:
 """
 from __future__ import annotations
 
-import sys
+import webbrowser
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import settings
-from app.routers import pages, api, ws
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -38,7 +38,6 @@ async def lifespan(app: FastAPI):
     print("=" * 56)
 
     # Check providers
-    providers = settings.available_providers()
     has_any_llm = False
 
     if settings.anthropic_api_key:
@@ -46,14 +45,12 @@ async def lifespan(app: FastAPI):
         has_any_llm = True
     else:
         print("  ⚠  Anthropic API key missing — Claude models unavailable")
-        print("     → Set ANTHROPIC_API_KEY in .env")
 
     if settings.openai_api_key:
         print("  ✓  OpenAI API key found")
         has_any_llm = True
     else:
         print("  ⚠  OpenAI API key missing — GPT models unavailable")
-        print("     → Set OPENAI_API_KEY in .env")
 
     # Check Ollama
     import httpx
@@ -66,13 +63,13 @@ async def lifespan(app: FastAPI):
             has_any_llm = True
     except Exception:
         print(f"  ⚠  Ollama nicht erreichbar ({settings.ollama_base_url})")
-        print("     → Starte Ollama oder passe OLLAMA_BASE_URL in .env an")
 
     if not has_any_llm:
-        print("\n  ✗  KEIN LLM-Provider verfügbar!")
-        print("     Mindestens ein API-Key oder Ollama wird benötigt.")
-        print("     → Kopiere .env.example nach .env und trage Keys ein.\n")
-        sys.exit(1)
+        print("\n  ⚠  Kein LLM-Provider verfügbar — Setup-Seite wird angezeigt.")
+        print("     Öffne den Browser und konfiguriere deine API-Keys.\n")
+        app.state.needs_setup = True
+    else:
+        app.state.needs_setup = False
 
     print(f"\n  📂  Debatten-Ordner: {settings.debates_dir.resolve()}")
 
@@ -84,8 +81,12 @@ async def lifespan(app: FastAPI):
     else:
         print(f"  📜  Keine gespeicherten Debatten gefunden")
 
-    print(f"  🌐  http://{settings.host}:{settings.port}")
+    url = f"http://{'localhost' if settings.host == '0.0.0.0' else settings.host}:{settings.port}"
+    print(f"  🌐  {url}")
     print("=" * 56 + "\n")
+
+    # Browser automatisch öffnen
+    webbrowser.open(url)
 
     yield  # App runs
 
@@ -93,10 +94,30 @@ async def lifespan(app: FastAPI):
 
 
 # ---------------------------------------------------------------------------
+# Setup-Redirect Middleware
+# ---------------------------------------------------------------------------
+
+class SetupRedirectMiddleware(BaseHTTPMiddleware):
+    """Leitet alle Anfragen auf /setup um, wenn noch keine API-Keys konfiguriert sind."""
+
+    async def dispatch(self, request: Request, call_next):
+        if getattr(request.app.state, "needs_setup", False):
+            path = request.url.path
+            # Diese Pfade immer durchlassen
+            if not (path.startswith("/setup") or path.startswith("/static")
+                    or path.startswith("/api/setup")):
+                return RedirectResponse(url="/setup", status_code=302)
+        return await call_next(request)
+
+
+# ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
 
 app = FastAPI(title="KI Arena", version="0.1.0", lifespan=lifespan)
+
+# Setup-Redirect Middleware
+app.add_middleware(SetupRedirectMiddleware)
 
 # Static files & templates
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
@@ -106,6 +127,7 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 app.state.templates = templates
 
 # Routers
+from app.routers import pages, api, ws
 app.include_router(pages.router)
 app.include_router(api.router)
 app.include_router(ws.router)

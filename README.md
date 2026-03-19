@@ -29,6 +29,20 @@ Zwei KIs debattieren live – mit TTS-Audio und animiertem Player. Alles in eine
 
 ## Quickstart
 
+### Option A: Als Paket installieren (empfohlen)
+
+```bash
+# 1. Installieren (einmalig)
+pipx install ki-arena        # oder: uv tool install ki-arena
+
+# 2. Starten — Browser öffnet sich automatisch
+ki-arena
+```
+
+Beim ersten Start erscheint eine **Einrichtungsseite im Browser**, auf der du deine API-Keys eingeben kannst. Keine `.env`-Datei nötig.
+
+### Option B: Aus dem Repository
+
 ```bash
 # 1. In den Projektordner wechseln
 cd ki-arena
@@ -36,16 +50,13 @@ cd ki-arena
 # 2. Dependencies installieren
 uv sync
 
-# 3. Environment konfigurieren
-cp .env.example .env
-# → Mindestens einen API-Key eintragen (oder Ollama lokal starten)
-
-# 4. Server starten
+# 3. Server starten — Browser öffnet sich automatisch
 uv run python -m app.main
-
-# 5. Browser öffnen
-open http://localhost:8000
 ```
+
+API-Keys können über die Einrichtungsseite im Browser (`/setup`) oder wie bisher über eine `.env`-Datei konfiguriert werden.
+
+### Startup-Ausgabe
 
 Beim Start zeigt die App an, welche Provider verfügbar sind:
 
@@ -57,8 +68,8 @@ Beim Start zeigt die App an, welche Provider verfügbar sind:
   ⚠  OpenAI API key missing — GPT models unavailable
   ✓  Ollama erreichbar – 3 Modell(e): llama3:latest, ...
 
-  📂  Debatten-Ordner: /pfad/zu/ki-arena/debates
-  🌐  http://0.0.0.0:8000
+  📂  Debatten-Ordner: ~/.ki-arena/debates
+  🌐  http://localhost:8000
 ========================================================
 ```
 
@@ -218,27 +229,28 @@ Ollama lässt KI-Modelle direkt auf deinem Computer laufen – komplett kostenlo
 
 ---
 
-#### API-Key in die Konfiguration eintragen
+#### API-Key eintragen
 
-**macOS:**
+**Am einfachsten: Über die Web-Oberfläche**
+
+Starte die App (siehe Schritt 7) — beim ersten Start öffnet sich automatisch die Einrichtungsseite im Browser. Dort trägst du deinen API-Key ein und klickst auf „Speichern & Starten". Fertig!
+
+Die Keys werden sicher in `~/.ki-arena/.env` gespeichert.
+
+**Alternativ: Manuell per `.env`-Datei**
+
 ```bash
-cp .env.example .env
-open -e .env
-```
-Der zweite Befehl öffnet die Datei im Texteditor. Alternativ: `nano .env` (im Terminal bearbeiten).
+# macOS:
+cp .env.example .env && open -e .env
 
-**Windows:**
-```cmd
-copy .env.example .env
-notepad .env
+# Windows:
+copy .env.example .env && notepad .env
 ```
 
-In der geöffneten Datei trägst du deinen Key ein. Beispiel für Anthropic:
+Beispiel:
 ```
 ANTHROPIC_API_KEY=sk-ant-api03-dein-key-hier-einfügen
 ```
-
-Speichere die Datei und schließe den Editor.
 
 > **Wichtig:** Die `.env`-Datei enthält geheime Schlüssel. Teile sie niemals mit anderen und lade sie nicht ins Internet hoch.
 
@@ -248,24 +260,11 @@ Speichere die Datei und schließe den Editor.
 uv run python -m app.main
 ```
 
-Wenn alles funktioniert, siehst du eine Ausgabe wie:
-```
-========================================================
-  ⚔  KI Arena – Starting up
-========================================================
-  ✓  Anthropic API key found
-  📂  Debatten-Ordner: /pfad/zu/ki-arena/debates
-  🌐  http://0.0.0.0:8000
-========================================================
-```
+Wenn alles funktioniert, öffnet sich automatisch dein Browser mit der KI Arena.
 
-### Schritt 8: Im Browser öffnen
+Falls kein API-Key konfiguriert ist, erscheint die Einrichtungsseite — trage dort deinen Key ein und klicke auf „Speichern & Starten".
 
-Öffne deinen Webbrowser (Chrome, Firefox, Safari, Edge) und gehe zu:
-
-**http://localhost:8000**
-
-Du siehst jetzt den KI-Arena-Konfigurator und kannst deine erste Debatte starten!
+Falls der Browser sich nicht automatisch öffnet, gehe manuell zu: **http://localhost:8000**
 
 ### Nächstes Mal starten
 
@@ -303,6 +302,7 @@ ki-arena/
 │   ├── templates/
 │   │   ├── base.html         # Layout (HTMX, Fonts, Navigation)
 │   │   ├── index.html        # Konfigurator mit Validierung
+│   │   ├── setup.html        # Einrichtungsseite für API-Keys
 │   │   ├── debate.html       # Live-Ansicht + WebSocket-Client
 │   │   ├── player.html       # Audio-Player mit Keyboard-Shortcuts
 │   │   └── partials/
@@ -310,7 +310,7 @@ ki-arena/
 │   └── static/
 │       ├── css/style.css     # Dark Arena Theme
 │       └── js/arena.js       # Frontend-Utilities
-├── debates/                  # Generierte Debatten (JSON + MP3)
+├── debates/                  # Generierte Debatten (JSON + MP3) – oder ~/.ki-arena/debates/
 ├── pyproject.toml
 ├── .env.example
 └── README.md
@@ -337,7 +337,7 @@ ki-arena/
 
 ### „Keine LLM-Modelle verfügbar"
 → Es ist kein API-Key konfiguriert und Ollama ist nicht erreichbar.
-**Lösung:** Trage mindestens einen Key in `.env` ein:
+**Lösung:** Öffne die Einstellungen unter `/setup` im Browser und trage mindestens einen API-Key ein. Alternativ per `.env`-Datei:
 ```bash
 # Option A: Anthropic
 ANTHROPIC_API_KEY=sk-ant-api03-...
@@ -389,14 +389,13 @@ uv python install 3.12
 uv sync --python 3.12
 ```
 
-## Nächste Schritte
+## Mitmachen
 
-- [ ] YouTube-Export (HTML-Video mit Untertiteln)
-- [ ] Debatte speichern/laden (JSON-Import/Export)
-- [ ] Voting-System nach Debatte
-- [ ] Custom System Prompts pro Debattant
-- [ ] Ollama Model-Discovery mit Pull-Option im UI
-- [ ] Docker-Compose Setup
+Du hast eine Idee, einen Bug gefunden oder möchtest ein Feature beitragen? Dann freue ich mich über deine Beteiligung!
+
+- **Feature-Requests & Bugs** — Erstelle ein [Issue auf GitHub](https://github.com/binaerverkehr/ki-arena/issues)
+- **Pull Requests** — Fork das Repo, erstelle einen Branch und schick einen PR
+- **Feedback** — Schreib mir auf [YouTube](https://www.youtube.com/@binaerverkehr/featured) oder über meine [Website](https://jayimdahl.de/)
 
 ---
 

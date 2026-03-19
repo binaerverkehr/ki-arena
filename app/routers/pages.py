@@ -11,11 +11,28 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
+from app.config import settings
 from app.services.llm import get_available_models
 from app.services.tts import get_curated_voices
 from app.services.debate import get_debate, list_debates
 
 router = APIRouter()
+
+
+@router.get("/setup", response_class=HTMLResponse)
+async def setup_page(request: Request):
+    """Einrichtungsseite für API-Keys."""
+    return request.app.state.templates.TemplateResponse(
+        "setup.html",
+        {
+            "request": request,
+            "current": {
+                "anthropic_api_key": settings.anthropic_api_key,
+                "openai_api_key": settings.openai_api_key,
+                "ollama_base_url": settings.ollama_base_url,
+            },
+        },
+    )
 
 
 @router.get("/", response_class=HTMLResponse)

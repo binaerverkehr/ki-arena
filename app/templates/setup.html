@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block title %}KI Arena – Einrichtung{% endblock %}
+
+{% block content %}
+<div class="hero">
+    <h1 class="hero-title">Willkommen in der<br><span class="accent">KI Arena</span></h1>
+    <p class="hero-sub">Konfiguriere mindestens einen LLM-Provider, um loszulegen.</p>
+</div>
+
+<div class="setup-container">
+    <form id="setupForm" class="config-form">
+        <!-- Anthropic -->
+        <div class="form-section setup-provider">
+            <div class="setup-provider-header">
+                <span class="setup-provider-name">Anthropic</span>
+                <span class="setup-provider-hint">Claude-Modelle</span>
+                <span id="status-anthropic" class="setup-status"></span>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="anthropic_api_key">API Key</label>
+                <input type="password" id="anthropic_api_key" name="anthropic_api_key"
+                    class="form-input" placeholder="sk-ant-..."
+                    value="{{ current.anthropic_api_key or '' }}"
+                    autocomplete="off">
+                <div class="form-help">
+                    Key von <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" style="color:var(--accent-a)">console.anthropic.com</a>
+                </div>
+            </div>
+            <button type="button" class="btn-test" onclick="testProvider('anthropic')">Verbindung testen</button>
+        </div>
+
+        <!-- OpenAI -->
+        <div class="form-section setup-provider">
+            <div class="setup-provider-header">
+                <span class="setup-provider-name">OpenAI</span>
+                <span class="setup-provider-hint">GPT-Modelle</span>
+                <span id="status-openai" class="setup-status"></span>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="openai_api_key">API Key</label>
+                <input type="password" id="openai_api_key" name="openai_api_key"
+                    class="form-input" placeholder="sk-..."
+                    value="{{ current.openai_api_key or '' }}"
+                    autocomplete="off">
+                <div class="form-help">
+                    Key von <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener" style="color:var(--accent-a)">platform.openai.com</a>
+                </div>
+            </div>
+            <button type="button" class="btn-test" onclick="testProvider('openai')">Verbindung testen</button>
+        </div>
+
+        <!-- Ollama -->
+        <div class="form-section setup-provider">
+            <div class="setup-provider-header">
+                <span class="setup-provider-name">Ollama</span>
+                <span class="setup-provider-hint">Lokale Modelle (optional)</span>
+                <span id="status-ollama" class="setup-status"></span>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="ollama_base_url">Server URL</label>
+                <input type="text" id="ollama_base_url" name="ollama_base_url"
+                    class="form-input" placeholder="http://localhost:11434"
+                    value="{{ current.ollama_base_url or 'http://localhost:11434' }}">
+                <div class="form-help">Kein API-Key nötig — Ollama muss lokal laufen.</div>
+            </div>
+            <button type="button" class="btn-test" onclick="testProvider('ollama')">Verbindung testen</button>
+        </div>
+
+        <div id="setup-error" class="notice notice-error" style="display:none;"></div>
+        <div id="setup-success" class="notice notice-info" style="display:none;"></div>
+
+        <button type="submit" class="btn-start" id="saveBtn">
+            <span class="btn-icon">⚔</span> Speichern &amp; Starten
+        </button>
+    </form>
+</div>
+
+<style>
+.setup-container {
+    max-width: 600px;
+    margin: 0 auto 3rem;
+}
+.setup-provider {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+}
+.setup-provider-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+.setup-provider-name {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.1rem;
+}
+.setup-provider-hint {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+.setup-status {
+    margin-left: auto;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+.setup-status.ok { color: var(--accent-green); }
+.setup-status.fail { color: var(--accent-b); }
+.setup-status.testing { color: var(--text-muted); }
+.btn-test {
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 0.4rem 1rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-family: var(--font-body);
+    transition: background 0.2s;
+}
+.btn-test:hover {
+    background: var(--border);
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function testProvider(provider) {
+    const statusEl = document.getElementById('status-' + provider);
+    statusEl.textContent = 'Teste...';
+    statusEl.className = 'setup-status testing';
+
+    const data = {};
+    if (provider === 'anthropic') {
+        data.anthropic_api_key = document.getElementById('anthropic_api_key').value;
+    } else if (provider === 'openai') {
+        data.openai_api_key = document.getElementById('openai_api_key').value;
+    } else if (provider === 'ollama') {
+        data.ollama_base_url = document.getElementById('ollama_base_url').value;
+    }
+
+    try {
+        const resp = await fetch('/api/setup/test', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({provider, ...data})
+        });
+        const result = await resp.json();
+        if (result.ok) {
+            statusEl.textContent = '✓ Verbunden';
+            statusEl.className = 'setup-status ok';
+        } else {
+            statusEl.textContent = '✗ ' + (result.error || 'Fehler');
+            statusEl.className = 'setup-status fail';
+        }
+    } catch (e) {
+        statusEl.textContent = '✗ Netzwerkfehler';
+        statusEl.className = 'setup-status fail';
+    }
+}
+
+document.getElementById('setupForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorEl = document.getElementById('setup-error');
+    const successEl = document.getElementById('setup-success');
+    errorEl.style.display = 'none';
+    successEl.style.display = 'none';
+
+    const data = {
+        anthropic_api_key: document.getElementById('anthropic_api_key').value.trim(),
+        openai_api_key: document.getElementById('openai_api_key').value.trim(),
+        ollama_base_url: document.getElementById('ollama_base_url').value.trim(),
+    };
+
+    try {
+        const resp = await fetch('/api/setup', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        const result = await resp.json();
+        if (result.ok) {
+            successEl.textContent = 'Konfiguration gespeichert! Weiterleitung...';
+            successEl.style.display = 'block';
+            setTimeout(() => window.location.href = '/', 1000);
+        } else {
+            errorEl.textContent = result.error || 'Fehler beim Speichern.';
+            errorEl.style.display = 'block';
+        }
+    } catch (e) {
+        errorEl.textContent = 'Netzwerkfehler beim Speichern.';
+        errorEl.style.display = 'block';
+    }
+});
+</script>
+{% endblock %}

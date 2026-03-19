@@ -12,8 +12,8 @@
 
     --text-primary: #eaeaf0;
     --text-secondary: #b8b8cc;
-    --text-muted: #7a7a94;
-    --text-dim: #55556a;
+    --text-muted: #8a8aa2;
+    --text-dim: #76768d;
 
     --accent-a: #6c5ce7;
     --accent-a-glow: rgba(108, 92, 231, 0.25);
@@ -76,6 +76,11 @@ body {
     -webkit-text-fill-color: transparent;
     background-clip: text;
 }
+.topbar-links {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
 .topbar-links a {
     color: var(--text-muted);
     text-decoration: none;
@@ -84,6 +89,22 @@ body {
     transition: color 0.2s;
 }
 .topbar-links a:hover { color: var(--text-primary); }
+.topbar-settings {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+.topbar-settings:hover {
+    color: var(--text-primary);
+    border-color: var(--border-light);
+    background: var(--surface-2);
+}
 
 /* --- Container --- */
 .container {
@@ -159,7 +180,7 @@ body {
 
 select.form-input {
     appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%237a7a94' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238a8aa2' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 0.75rem center;
     padding-right: 2rem;

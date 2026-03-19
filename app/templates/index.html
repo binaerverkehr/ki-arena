@@ -17,15 +17,14 @@
         <span class="provider-pill provider-inactive" title="API-Key fehlt oder nicht erreichbar">✗ {{ p | capitalize }}</span>
         {% endif %}
     {% endfor %}
-    <span class="provider-hint">API-Keys in <code>.env</code> konfigurieren</span>
+    <a href="/setup" class="provider-hint" style="color:var(--text-muted);text-decoration:none;">API-Keys konfigurieren</a>
 </div>
 
 {% if not models %}
 <!-- No models available warning -->
 <div class="notice notice-error">
     <strong>Keine LLM-Modelle verfügbar.</strong><br>
-    Trage mindestens einen API-Key in die <code>.env</code>-Datei ein oder starte Ollama lokal.
-    Siehe <code>README.md</code> für Details.
+    Konfiguriere mindestens einen API-Key in den <a href="/setup" style="color:var(--accent-a)">Einstellungen</a> oder starte Ollama lokal.
 </div>
 {% else %}
 
