@@ -2,6 +2,10 @@
 
 Zwei KIs debattieren live – mit TTS-Audio und animiertem Player. Alles in einer unified Web-App.
 
+| Konfigurator | Debatte | Player |
+|:---:|:---:|:---:|
+| ![Konfigurator](docs/screenshots/configurator.png) | ![Debatte](docs/screenshots/debate.png) | ![Player](docs/screenshots/player.png) |
+
 ## Features
 
 - **Konfigurator** – Thema, Modelle, Stimmen, Runden, Positionen – alles im Browser
