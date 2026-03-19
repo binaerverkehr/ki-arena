@@ -56,6 +56,229 @@ Beim Start zeigt die App an, welche Provider verfügbar sind:
 ========================================================
 ```
 
+## Ausführliche Anleitung für Einsteiger (macOS & Windows)
+
+Falls du noch nie mit Python oder der Kommandozeile gearbeitet hast, folge dieser Schritt-für-Schritt-Anleitung.
+
+### Schritt 1: Terminal / Kommandozeile öffnen
+
+**macOS:**
+1. Drücke `Cmd + Leertaste` (Spotlight-Suche öffnet sich)
+2. Tippe `Terminal` ein und drücke `Enter`
+
+**Windows:**
+1. Drücke `Windows-Taste + R`
+2. Tippe `cmd` ein und drücke `Enter`
+3. Alternativ: Suche im Startmenü nach „Eingabeaufforderung" oder „PowerShell"
+
+> Im Folgenden werden alle Befehle in diesem Terminal/dieser Kommandozeile eingegeben.
+
+### Schritt 2: Python installieren
+
+KI Arena benötigt **Python 3.12 oder neuer**.
+
+**Prüfen, ob Python bereits installiert ist:**
+```bash
+python3 --version
+```
+Wenn eine Versionsnummer wie `Python 3.12.x` erscheint, ist Python bereits installiert. Weiter mit Schritt 3.
+
+**macOS – Python installieren:**
+
+*Option A: Über die offizielle Website*
+1. Gehe zu https://www.python.org/downloads/
+2. Klicke auf „Download Python 3.12.x" (die große gelbe Schaltfläche)
+3. Öffne die heruntergeladene `.pkg`-Datei und folge dem Installationsassistenten
+4. Starte das Terminal neu und prüfe mit `python3 --version`
+
+*Option B: Über Homebrew (falls Homebrew installiert ist)*
+```bash
+brew install python@3.12
+```
+
+**Windows – Python installieren:**
+1. Gehe zu https://www.python.org/downloads/
+2. Klicke auf „Download Python 3.12.x"
+3. Öffne die heruntergeladene `.exe`-Datei
+4. **Wichtig:** Setze im Installationsfenster unbedingt den Haken bei **„Add python.exe to PATH"** (ganz unten im Fenster)
+5. Klicke auf „Install Now"
+6. Schließe die Eingabeaufforderung und öffne sie neu
+7. Prüfe mit `python --version` (unter Windows ohne `3`)
+
+### Schritt 3: `uv` installieren (Python-Paketmanager)
+
+`uv` ist ein moderner Python-Paketmanager, der alle Abhängigkeiten automatisch installiert.
+
+**macOS:**
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+Danach Terminal schließen und neu öffnen, damit der Befehl `uv` verfügbar ist.
+
+**Windows (PowerShell):**
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+Danach Eingabeaufforderung schließen und neu öffnen.
+
+**Prüfen, ob die Installation geklappt hat:**
+```bash
+uv --version
+```
+
+### Schritt 4: KI Arena herunterladen
+
+Falls du das Projekt als ZIP-Datei erhalten hast:
+1. Entpacke die ZIP-Datei (Doppelklick auf macOS, Rechtsklick → „Alle extrahieren" auf Windows)
+2. Merke dir den Ordnerpfad (z.B. `Downloads/ki-arena`)
+
+Falls du Git installiert hast:
+```bash
+git clone <repository-url>
+```
+
+Wechsle im Terminal in den Projektordner:
+
+**macOS:**
+```bash
+cd ~/Downloads/ki-arena
+```
+
+**Windows:**
+```cmd
+cd %USERPROFILE%\Downloads\ki-arena
+```
+
+> **Tipp:** Du kannst den Ordner auch per Drag & Drop ins Terminal ziehen, um den Pfad einzufügen.
+
+### Schritt 5: Abhängigkeiten installieren
+
+Dieser Befehl installiert automatisch alle benötigten Python-Pakete:
+```bash
+uv sync
+```
+
+Das dauert beim ersten Mal ca. 1–2 Minuten. Wenn alles klappt, erscheint keine Fehlermeldung.
+
+### Schritt 6: API-Key besorgen und eintragen
+
+Die KI Arena braucht Zugang zu einem KI-Sprachmodell. Du hast drei Optionen:
+
+---
+
+#### Option A: Anthropic (Claude) – empfohlen
+
+1. Gehe zu https://console.anthropic.com/
+2. Erstelle ein kostenloses Konto (E-Mail + Bestätigung)
+3. Gehe zu **Settings → API Keys** (oder direkt: https://console.anthropic.com/settings/keys)
+4. Klicke auf **„Create Key"**
+5. Gib dem Key einen Namen (z.B. „KI Arena") und klicke auf **„Create Key"**
+6. **Kopiere den Key sofort** – er wird nur einmal angezeigt! Er beginnt mit `sk-ant-api03-...`
+
+> **Kosten:** Anthropic bietet ein kostenloses Startguthaben. Danach fallen geringe Kosten pro Debatte an (ca. $0.01–0.10 je nach Modell und Länge). Du musst eine Zahlungsmethode hinterlegen, um das kostenlose Guthaben zu nutzen.
+
+---
+
+#### Option B: OpenAI (GPT-4o)
+
+1. Gehe zu https://platform.openai.com/
+2. Erstelle ein Konto oder melde dich an
+3. Gehe zu **API Keys** (oder direkt: https://platform.openai.com/api-keys)
+4. Klicke auf **„Create new secret key"**
+5. Gib dem Key einen Namen und klicke auf **„Create secret key"**
+6. **Kopiere den Key sofort** – er beginnt mit `sk-...`
+
+> **Kosten:** Ähnlich wie Anthropic – geringes Startguthaben, dann Pay-per-Use. Zahlungsmethode erforderlich.
+
+---
+
+#### Option C: Ollama (kostenlos & lokal, kein API-Key nötig)
+
+Ollama lässt KI-Modelle direkt auf deinem Computer laufen – komplett kostenlos und ohne Internet (nach dem Download).
+
+1. Gehe zu https://ollama.com/download
+2. Lade die Version für dein Betriebssystem herunter und installiere sie
+3. Öffne ein **neues** Terminal-Fenster und starte Ollama:
+   ```bash
+   ollama serve
+   ```
+4. Öffne ein **weiteres** Terminal-Fenster und lade ein Modell herunter:
+   ```bash
+   ollama pull llama3
+   ```
+   (Das Modell ist ca. 4 GB groß – braucht etwas Zeit.)
+
+> **Hinweis:** Ollama braucht einen Computer mit mindestens 8 GB RAM. Auf älteren oder schwächeren Geräten kann es langsam sein.
+
+---
+
+#### API-Key in die Konfiguration eintragen
+
+**macOS:**
+```bash
+cp .env.example .env
+open -e .env
+```
+Der zweite Befehl öffnet die Datei im Texteditor. Alternativ: `nano .env` (im Terminal bearbeiten).
+
+**Windows:**
+```cmd
+copy .env.example .env
+notepad .env
+```
+
+In der geöffneten Datei trägst du deinen Key ein. Beispiel für Anthropic:
+```
+ANTHROPIC_API_KEY=sk-ant-api03-dein-key-hier-einfügen
+```
+
+Speichere die Datei und schließe den Editor.
+
+> **Wichtig:** Die `.env`-Datei enthält geheime Schlüssel. Teile sie niemals mit anderen und lade sie nicht ins Internet hoch.
+
+### Schritt 7: KI Arena starten
+
+```bash
+uv run python -m app.main
+```
+
+Wenn alles funktioniert, siehst du eine Ausgabe wie:
+```
+========================================================
+  ⚔  KI Arena – Starting up
+========================================================
+  ✓  Anthropic API key found
+  📂  Debatten-Ordner: /pfad/zu/ki-arena/debates
+  🌐  http://0.0.0.0:8000
+========================================================
+```
+
+### Schritt 8: Im Browser öffnen
+
+Öffne deinen Webbrowser (Chrome, Firefox, Safari, Edge) und gehe zu:
+
+**http://localhost:8000**
+
+Du siehst jetzt den KI-Arena-Konfigurator und kannst deine erste Debatte starten!
+
+### Nächstes Mal starten
+
+Wenn du die KI Arena später erneut starten willst, brauchst du nur zwei Schritte:
+
+1. Terminal öffnen und in den Projektordner wechseln:
+   ```bash
+   cd ~/Downloads/ki-arena    # macOS
+   cd %USERPROFILE%\Downloads\ki-arena    # Windows
+   ```
+2. Server starten:
+   ```bash
+   uv run python -m app.main
+   ```
+
+Falls du Ollama nutzt: Stelle sicher, dass `ollama serve` in einem separaten Terminal-Fenster läuft.
+
+---
+
 ## Projektstruktur
 
 ```
