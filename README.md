@@ -2,6 +2,8 @@
 
 Zwei KIs debattieren live – mit TTS-Audio und animiertem Player. Alles in einer unified Web-App.
 
+> **Von [Jay Imdahl](https://jayimdahl.de/)** — [YouTube: @binaerverkehr](https://www.youtube.com/@binaerverkehr/featured) | [Website](https://jayimdahl.de/)
+
 | Konfigurator | Debatte | Player |
 |:---:|:---:|:---:|
 | ![Konfigurator](docs/screenshots/configurator.png) | ![Debatte](docs/screenshots/debate.png) | ![Player](docs/screenshots/player.png) |
@@ -395,3 +397,5 @@ uv sync --python 3.12
 - [ ] Custom System Prompts pro Debattant
 - [ ] Ollama Model-Discovery mit Pull-Option im UI
 - [ ] Docker-Compose Setup
+
+
