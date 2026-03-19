@@ -134,7 +134,7 @@ Falls du das Projekt als ZIP-Datei erhalten hast:
 
 Falls du Git installiert hast:
 ```bash
-git clone <repository-url>
+git clone https://github.com/binaerverkehr/ki-arena.git
 ```
 
 Wechsle im Terminal in den Projektordner:

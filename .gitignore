@@ -22,5 +22,6 @@ debates/
 
 # uv
 .python-version
-uv.lock
+
+# Claude Code
 CLAUDE.md
