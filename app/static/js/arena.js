@@ -227,4 +227,41 @@ Rules:
 
     // Initial update
     updatePromptPlaceholders();
+
+    // ─── File Upload Preview ────────────────────────────────────
+    // Shows selected filenames and sizes, validates limits.
+
+    const MAX_FILES = 5;
+    const MAX_SIZE_MB = 10;
+
+    document.querySelectorAll('.file-input').forEach(function (input) {
+        input.addEventListener('change', function () {
+            const zone = this.closest('.file-upload-zone');
+            const listEl = zone?.querySelector('.file-list');
+            if (!listEl) return;
+
+            listEl.innerHTML = '';
+            const files = this.files;
+
+            if (files.length > MAX_FILES) {
+                listEl.innerHTML = `<div class="file-item file-error">Maximal ${MAX_FILES} Dateien erlaubt (${files.length} ausgewählt)</div>`;
+                return;
+            }
+
+            for (const file of files) {
+                const item = document.createElement('div');
+                item.className = 'file-item';
+                const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+
+                if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+                    item.classList.add('file-error');
+                    item.textContent = `${file.name} (${sizeMB} MB) – zu groß!`;
+                } else {
+                    item.textContent = `${file.name} (${sizeMB} MB)`;
+                }
+
+                listEl.appendChild(item);
+            }
+        });
+    });
 });

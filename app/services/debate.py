@@ -41,6 +41,8 @@ class Debater:
     voice: str
     position: str  # e.g. "pro" or "contra"
     system_prompt: str = ""
+    document_context: str = ""  # Extrahierter Text aus hochgeladenen Dokumenten
+    image_attachments: list[dict] = field(default_factory=list)  # [{filename, base64_data, media_type}]
 
 
 @dataclass
@@ -67,6 +69,8 @@ class DebateConfig:
     moderator_intro: bool = True
     moderator_summary: bool = True
     moderator_system_prompt: str = ""
+    moderator_document_context: str = ""
+    moderator_image_attachments: list[dict] = field(default_factory=list)
 
 
 @dataclass
@@ -128,12 +132,18 @@ class Debate:
                     "model": self.config.debater_a.model,
                     "voice": self.config.debater_a.voice,
                     "position": self.config.debater_a.position,
+                    "has_documents": bool(self.config.debater_a.document_context),
+                    "has_images": bool(self.config.debater_a.image_attachments),
+                    "attachment_filenames": [a["filename"] for a in self.config.debater_a.image_attachments],
                 },
                 "debater_b": {
                     "name": self.config.debater_b.name,
                     "model": self.config.debater_b.model,
                     "voice": self.config.debater_b.voice,
                     "position": self.config.debater_b.position,
+                    "has_documents": bool(self.config.debater_b.document_context),
+                    "has_images": bool(self.config.debater_b.image_attachments),
+                    "attachment_filenames": [a["filename"] for a in self.config.debater_b.image_attachments],
                 },
             }
         return result
@@ -144,6 +154,10 @@ class Debate:
         config = None
         if "config" in data:
             c = data["config"]
+            # Strip serialization-only keys that aren't Debater fields
+            debater_keys = {"name", "model", "voice", "position", "system_prompt"}
+            da = {k: v for k, v in c["debater_a"].items() if k in debater_keys}
+            db = {k: v for k, v in c["debater_b"].items() if k in debater_keys}
             config = DebateConfig(
                 topic=c["topic"],
                 language=c.get("language", "de"),
@@ -151,8 +165,8 @@ class Debate:
                 max_tokens_per_turn=c.get("max_tokens_per_turn", 1024),
                 moderator_intro=c.get("moderator_intro", True),
                 moderator_summary=c.get("moderator_summary", True),
-                debater_a=Debater(**c["debater_a"]),
-                debater_b=Debater(**c["debater_b"]),
+                debater_a=Debater(**da),
+                debater_b=Debater(**db),
             )
         elif "topic" in data:
             # Fallback für alte JSON-Dateien ohne verschachtelte Config
@@ -280,14 +294,15 @@ def _build_system_prompt(debater: Debater, config: DebateConfig) -> str:
 
     Wenn debater.system_prompt gesetzt ist, wird er als vollständiger
     System-Prompt verwendet. Andernfalls wird der Standard-Prompt erzeugt.
+    Dokument-Kontext wird in beiden Fällen angehängt.
     """
     if debater.system_prompt:
-        return debater.system_prompt
+        base = debater.system_prompt
+    else:
+        length = _length_hint(config.max_tokens_per_turn, config.language)
 
-    length = _length_hint(config.max_tokens_per_turn, config.language)
-
-    if config.language == "de":
-        return f"""Du bist {debater.name}, ein eloquenter Debattenteilnehmer.
+        if config.language == "de":
+            base = f"""Du bist {debater.name}, ein eloquenter Debattenteilnehmer.
 Deine Position: {debater.position} zum Thema "{config.topic}".
 
 Regeln:
@@ -296,8 +311,8 @@ Regeln:
 - Bleib sachlich, aber leidenschaftlich.
 - {length}
 - WICHTIG: Beginne DIREKT mit deinen Argumenten. Schreibe KEINE Überschriften, Rundennummern, Positionsbezeichnungen oder Meta-Informationen wie "Eröffnungsstatement", "Pro-Antwort", "Runde 1" etc. Kein einleitender Titel – nur deine Argumente."""
-    else:
-        return f"""You are {debater.name}, an eloquent debate participant.
+        else:
+            base = f"""You are {debater.name}, an eloquent debate participant.
 Your position: {debater.position} on the topic "{config.topic}".
 
 Rules:
@@ -306,6 +321,12 @@ Rules:
 - Stay factual but passionate.
 - {length}
 - IMPORTANT: Start DIRECTLY with your arguments. Do NOT write any headers, round numbers, position labels, or meta-information like "Opening statement", "Pro response", "Round 1" etc. No introductory title – only your arguments."""
+
+    # Dokument-Kontext anhängen (sowohl bei custom als auch bei default Prompt)
+    if debater.document_context:
+        base += f"\n\n{debater.document_context}"
+
+    return base
 
 
 def _build_messages(debate: Debate, current_debater: Debater, round_num: int, config: DebateConfig) -> list[dict]:
@@ -402,6 +423,8 @@ async def run_debate(
             await notify("generating_intro")
             lang = "Deutsch" if config.language == "de" else "English"
             mod_system = config.moderator_system_prompt or f"Du bist ein professioneller Debattenmoderator. Formuliere eine knappe, spannende Einleitung für die folgende Debatte. Sprache: {lang}."
+            if config.moderator_document_context:
+                mod_system += f"\n\n{config.moderator_document_context}"
             intro_resp = await llm.generate(
                 model=config.debater_a.model,  # use debater A's model for intro
                 system=mod_system,
@@ -410,17 +433,27 @@ async def run_debate(
                     "content": f"Thema: {config.topic}\n\nTeilnehmer:\n- {config.debater_a.name} (Position: {config.debater_a.position})\n- {config.debater_b.name} (Position: {config.debater_b.position})\n\nAnzahl Runden: {config.num_rounds}",
                 }],
                 max_tokens=512,
+                images=config.moderator_image_attachments or None,
             )
             debate.intro_text = intro_resp.content
             await notify("intro_generated")
 
         # --- Debate Rounds ---
+        # Track whether each debater has already received their images
+        _images_sent = set()
+
         for round_num in range(1, config.num_rounds + 1):
             for debater in [config.debater_a, config.debater_b]:
                 await notify(f"round_{round_num}_{debater.name}_thinking")
 
                 system = _build_system_prompt(debater, config)
                 messages = _build_messages(debate, debater, round_num, config)
+
+                # Bilder nur beim ersten Call senden (Token-Sparmaßnahme)
+                images = None
+                if debater.image_attachments and debater.name not in _images_sent:
+                    images = debater.image_attachments
+                    _images_sent.add(debater.name)
 
                 try:
                     token_ceiling = _TOKEN_CEILING.get(
@@ -432,6 +465,7 @@ async def run_debate(
                         system=system,
                         messages=messages,
                         max_tokens=token_ceiling,
+                        images=images,
                     )
                     content = resp.content
                     tokens = resp.tokens_used
@@ -473,6 +507,8 @@ async def run_debate(
                 f"### Fazit\n(Dein Gesamturteil)\n"
                 f"Sprache: {lang}."
             )
+            if config.moderator_document_context:
+                summary_system += f"\n\n{config.moderator_document_context}"
             summary_resp = await llm.generate(
                 model=config.debater_a.model,
                 system=summary_system,
@@ -481,6 +517,7 @@ async def run_debate(
                     "content": f"Thema: {config.topic}\n\nDebattenverlauf:\n{all_arguments}\n\nBitte fasse zusammen.",
                 }],
                 max_tokens=1024,
+                images=config.moderator_image_attachments or None,
             )
             debate.summary_text = summary_resp.content
             await notify("summary_generated")

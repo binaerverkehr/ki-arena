@@ -45,10 +45,15 @@ class LLMResponse:
 # Provider implementations
 # ---------------------------------------------------------------------------
 
-async def _call_anthropic(model: str, system: str, messages: list[dict], max_tokens: int = 2048) -> LLMResponse:
+async def _call_anthropic(model: str, system: str, messages: list[dict], max_tokens: int = 2048, images: list[dict] | None = None) -> LLMResponse:
     from anthropic import AsyncAnthropic
 
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+
+    # Bilder als Content-Blocks in die erste User-Message injizieren
+    if images:
+        messages = _inject_images_anthropic(messages, images)
+
     resp = await client.messages.create(
         model=model,
         max_tokens=max_tokens,
@@ -60,10 +65,37 @@ async def _call_anthropic(model: str, system: str, messages: list[dict], max_tok
     return LLMResponse(content=text, model=model, provider="anthropic", tokens_used=tokens)
 
 
-async def _call_openai(model: str, system: str, messages: list[dict], max_tokens: int = 2048) -> LLMResponse:
+def _inject_images_anthropic(messages: list[dict], images: list[dict]) -> list[dict]:
+    """Wandelt die erste User-Message in ein Multi-Content-Block-Format für Anthropic Vision."""
+    messages = [m.copy() for m in messages]
+    for i, msg in enumerate(messages):
+        if msg["role"] == "user":
+            content_blocks = [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": img["media_type"],
+                        "data": img["base64_data"],
+                    },
+                }
+                for img in images
+            ]
+            content_blocks.append({"type": "text", "text": msg["content"]})
+            messages[i] = {"role": "user", "content": content_blocks}
+            break
+    return messages
+
+
+async def _call_openai(model: str, system: str, messages: list[dict], max_tokens: int = 2048, images: list[dict] | None = None) -> LLMResponse:
     from openai import AsyncOpenAI
 
     client = AsyncOpenAI(api_key=settings.openai_api_key)
+
+    # Bilder als Content-Parts in die erste User-Message injizieren
+    if images:
+        messages = _inject_images_openai(messages, images)
+
     oai_messages = [{"role": "system", "content": system}] + messages
     resp = await client.chat.completions.create(
         model=model,
@@ -75,8 +107,35 @@ async def _call_openai(model: str, system: str, messages: list[dict], max_tokens
     return LLMResponse(content=text, model=model, provider="openai", tokens_used=tokens)
 
 
-async def _call_ollama(model: str, system: str, messages: list[dict], max_tokens: int = 2048) -> LLMResponse:
+def _inject_images_openai(messages: list[dict], images: list[dict]) -> list[dict]:
+    """Wandelt die erste User-Message in ein Multi-Content-Part-Format für OpenAI Vision."""
+    messages = [m.copy() for m in messages]
+    for i, msg in enumerate(messages):
+        if msg["role"] == "user":
+            content_parts = [
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{img['media_type']};base64,{img['base64_data']}"},
+                }
+                for img in images
+            ]
+            content_parts.append({"type": "text", "text": msg["content"]})
+            messages[i] = {"role": "user", "content": content_parts}
+            break
+    return messages
+
+
+async def _call_ollama(model: str, system: str, messages: list[dict], max_tokens: int = 2048, images: list[dict] | None = None) -> LLMResponse:
     url = f"{settings.ollama_base_url}/api/chat"
+
+    # Bilder in die erste User-Message injizieren (Ollama-Format: base64-Strings)
+    if images:
+        messages = [m.copy() for m in messages]
+        for i, msg in enumerate(messages):
+            if msg["role"] == "user":
+                messages[i] = {**msg, "images": [img["base64_data"] for img in images]}
+                break
+
     ollama_messages = [{"role": "system", "content": system}] + messages
     payload = {
         "model": model,
@@ -108,15 +167,15 @@ def get_provider(model: str) -> str:
     return "ollama"  # fallback: assume Ollama for unknown models
 
 
-async def generate(model: str, system: str, messages: list[dict], max_tokens: int = 2048) -> LLMResponse:
+async def generate(model: str, system: str, messages: list[dict], max_tokens: int = 2048, images: list[dict] | None = None) -> LLMResponse:
     """Route to the correct provider and return a unified response."""
     provider = get_provider(model)
     if provider == "anthropic":
-        return await _call_anthropic(model, system, messages, max_tokens)
+        return await _call_anthropic(model, system, messages, max_tokens, images)
     elif provider == "openai":
-        return await _call_openai(model, system, messages, max_tokens)
+        return await _call_openai(model, system, messages, max_tokens, images)
     else:
-        return await _call_ollama(model, system, messages, max_tokens)
+        return await _call_ollama(model, system, messages, max_tokens, images)
 
 
 async def list_ollama_models() -> list[str]:

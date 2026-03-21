@@ -28,7 +28,7 @@
 </div>
 {% else %}
 
-<form class="config-form" id="debateForm" hx-post="/api/debate/start" hx-swap="innerHTML" hx-target="#form-result">
+<form class="config-form" id="debateForm" hx-post="/api/debate/start" hx-swap="innerHTML" hx-target="#form-result" hx-encoding="multipart/form-data">
 
     {% if clone %}
     <div class="notice notice-info" style="margin-bottom: 1.25rem;">
@@ -113,6 +113,14 @@
                     >{{ clone.a_system_prompt if clone and clone.a_system_prompt else '' }}</textarea>
                 <div class="form-help" style="margin-top:4px">Leer lassen = Standard-Prompt (wird automatisch mit Name, Position und Thema erzeugt)</div>
             </details>
+            <details class="prompt-details">
+                <summary class="form-label prompt-toggle">Dokumente &amp; Bilder</summary>
+                <div class="file-upload-zone">
+                    <input type="file" name="a_files" multiple accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.webp" class="file-input">
+                    <div class="file-upload-hint">PDF, DOCX, TXT, PNG, JPG, WEBP (max. 5 Dateien, je max. 10 MB)</div>
+                    <div class="file-list"></div>
+                </div>
+            </details>
         </div>
 
         <!-- VS Badge -->
@@ -153,6 +161,14 @@
                     >{{ clone.b_system_prompt if clone and clone.b_system_prompt else '' }}</textarea>
                 <div class="form-help" style="margin-top:4px">Leer lassen = Standard-Prompt (wird automatisch mit Name, Position und Thema erzeugt)</div>
             </details>
+            <details class="prompt-details">
+                <summary class="form-label prompt-toggle">Dokumente &amp; Bilder</summary>
+                <div class="file-upload-zone">
+                    <input type="file" name="b_files" multiple accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.webp" class="file-input">
+                    <div class="file-upload-hint">PDF, DOCX, TXT, PNG, JPG, WEBP (max. 5 Dateien, je max. 10 MB)</div>
+                    <div class="file-list"></div>
+                </div>
+            </details>
         </div>
     </div>
 
@@ -167,12 +183,20 @@
             <span>Moderator-Zusammenfassung</span>
         </label>
     </div>
-    <details class="prompt-details" style="margin-bottom: 1rem;"{% if clone and clone.moderator_system_prompt %} open{% endif %}>
+    <details class="prompt-details" style="margin-bottom: 0.5rem;"{% if clone and clone.moderator_system_prompt %} open{% endif %}>
         <summary class="form-label prompt-toggle">🎙 Moderator System Prompt</summary>
         <textarea name="moderator_system_prompt" id="moderator_system_prompt" rows="5" class="form-input form-textarea"
             placeholder="{{ default_prompts[clone.language if clone else 'de'].moderator }}"
             >{{ clone.moderator_system_prompt if clone and clone.moderator_system_prompt else '' }}</textarea>
         <div class="form-help" style="margin-top:4px">Leer lassen = Standard-Prompts für Einleitung und Zusammenfassung (sprachabhängig)</div>
+    </details>
+    <details class="prompt-details" style="margin-bottom: 1rem;">
+        <summary class="form-label prompt-toggle">🎙 Moderator Dokumente &amp; Bilder</summary>
+        <div class="file-upload-zone">
+            <input type="file" name="mod_files" multiple accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.webp" class="file-input">
+            <div class="file-upload-hint">PDF, DOCX, TXT, PNG, JPG, WEBP (max. 5 Dateien, je max. 10 MB)</div>
+            <div class="file-list"></div>
+        </div>
     </details>
 
     <!-- Duration estimate -->

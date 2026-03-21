@@ -86,7 +86,25 @@ async def _broadcast(debate: Debate, event: str):
 @router.post("/debate/start")
 async def start_debate(request: Request):
     form = await request.form()
-    req = StartDebateRequest(**dict(form))
+
+    # Separate text fields from file uploads
+    text_fields = {}
+    a_files = []
+    b_files = []
+    mod_files = []
+
+    for key, value in form.multi_items():
+        if key == "a_files" and hasattr(value, "read"):
+            a_files.append(value)
+        elif key == "b_files" and hasattr(value, "read"):
+            b_files.append(value)
+        elif key == "mod_files" and hasattr(value, "read"):
+            mod_files.append(value)
+        else:
+            text_fields[key] = value
+
+    req = StartDebateRequest(**text_fields)
+
     # --- Server-side validation ---
     errors: list[str] = []
     if not req.topic or len(req.topic.strip()) < 10:
@@ -99,6 +117,11 @@ async def start_debate(request: Request):
         errors.append("Beide Debattanten brauchen einen Namen.")
     if req.num_rounds < 1 or req.num_rounds > 10:
         errors.append("Anzahl Runden muss zwischen 1 und 10 liegen.")
+
+    from app.services.documents import MAX_FILES_PER_ROLE
+    for label, files in [("Debattant A", a_files), ("Debattant B", b_files), ("Moderator", mod_files)]:
+        if len(files) > MAX_FILES_PER_ROLE:
+            errors.append(f"{label}: Maximal {MAX_FILES_PER_ROLE} Dateien erlaubt.")
 
     if errors:
         error_html = '<div class="notice notice-error">' + '<br>'.join(errors) + '</div>'
@@ -115,6 +138,22 @@ async def start_debate(request: Request):
                 status_code=422,
             )
 
+    # --- Process file uploads ---
+    from app.services.documents import process_uploads, build_context_block, get_image_attachments
+
+    a_docs = await process_uploads(a_files, req.language) if a_files else []
+    b_docs = await process_uploads(b_files, req.language) if b_files else []
+    mod_docs = await process_uploads(mod_files, req.language) if mod_files else []
+
+    # Check for processing errors
+    for docs, label in [(a_docs, "Debattant A"), (b_docs, "Debattant B"), (mod_docs, "Moderator")]:
+        doc_errors = [f"{label}: {d.filename} – {d.error}" for d in docs if d.error]
+        errors.extend(doc_errors)
+
+    if errors:
+        error_html = '<div class="notice notice-error">' + '<br>'.join(errors) + '</div>'
+        return HTMLResponse(error_html, status_code=422)
+
     config = DebateConfig(
         topic=req.topic.strip(),
         language=req.language,
@@ -123,12 +162,16 @@ async def start_debate(request: Request):
         moderator_intro=req.wants_intro,
         moderator_summary=req.wants_summary,
         moderator_system_prompt=req.moderator_system_prompt.strip(),
+        moderator_document_context=build_context_block(mod_docs, req.language),
+        moderator_image_attachments=get_image_attachments(mod_docs),
         debater_a=Debater(
             name=req.a_name.strip(),
             model=req.a_model,
             voice=req.a_voice,
             position=req.a_position.strip(),
             system_prompt=req.a_system_prompt.strip(),
+            document_context=build_context_block(a_docs, req.language),
+            image_attachments=get_image_attachments(a_docs),
         ),
         debater_b=Debater(
             name=req.b_name.strip(),
@@ -136,6 +179,8 @@ async def start_debate(request: Request):
             voice=req.b_voice,
             position=req.b_position.strip(),
             system_prompt=req.b_system_prompt.strip(),
+            document_context=build_context_block(b_docs, req.language),
+            image_attachments=get_image_attachments(b_docs),
         ),
     )
 
