@@ -38,6 +38,7 @@ Zwei KIs debattieren live – mit TTS-Audio und animiertem Player. Alles in eine
 ```bash
 # 1. Installieren (einmalig)
 pipx install ki-arena        # oder: uv tool install ki-arena
+                              # oder: pip install ki-arena
 
 # 2. Starten — Browser öffnet sich automatisch
 ki-arena
